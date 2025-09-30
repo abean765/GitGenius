@@ -1,1 +1,40 @@
-First file
+# GitGenius
+
+Ein Qt Quick basierter Git-Client mit QML-Oberfläche, der den Umgang mit Subrepositories (Git-Submodule) erleichtert.
+
+## Funktionen
+
+- Öffnen eines bestehenden Git-Repositories.
+- Anzeige des Arbeitsbaum-Status mit Unterstützung für Umbenennungen.
+- Auflisten und Interpretieren von Git-Submodulen inklusive Rekursion.
+- Staging einzelner Dateien sowie Ausführen eigener Git-Befehle.
+- Einfache Commit-Oberfläche direkt in der Anwendung.
+
+## Projektstruktur
+
+```
+CMakeLists.txt          # CMake-Projektdatei für Qt 6
+src/                    # C++ Backend mit Git-Integration
+qml/                    # QML-Komponenten für die Oberfläche
+assets/icons/           # Vektor-Icons, die im UI verwendet werden
+```
+
+## Voraussetzungen
+
+- Qt 6.5 oder neuer mit den Modulen *Qt Quick* und *Qt Quick Controls 2*.
+- Ein installiertes `git`-Kommandozeilenwerkzeug, das vom Backend aufgerufen werden kann.
+
+## Build & Start
+
+```bash
+mkdir build
+cd build
+cmake ..
+cmake --build .
+./appGitGenius
+```
+
+## Hinweise zur Git-Integration
+
+Das Backend nutzt `QProcess`, um Git-Befehle im ausgewählten Repository auszuführen. Dadurch funktionieren alle Operationen auch für komplexere Setups mit Submodulen. Der Status wird über `git status --porcelain` eingelesen, Submodule mit `git submodule status --recursive` analysiert.
+
