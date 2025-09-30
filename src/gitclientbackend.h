@@ -4,7 +4,8 @@
 #include <QString>
 #include <QStringList>
 #include <QVariantList>
-#include <QVariantMap>
+
+struct git_repository;
 
 struct GitCommandResult
 {
@@ -20,15 +21,14 @@ class GitClientBackend : public QObject
     Q_PROPERTY(QString repositoryPath READ repositoryPath NOTIFY repositoryPathChanged FINAL)
     Q_PROPERTY(QVariantList status READ status NOTIFY statusChanged FINAL)
     Q_PROPERTY(QVariantList submodules READ submodules NOTIFY submodulesChanged FINAL)
-    Q_PROPERTY(QVariantMap repositoryTree READ repositoryTree NOTIFY repositoryTreeChanged FINAL)
 
 public:
     explicit GitClientBackend(QObject *parent = nullptr);
+    ~GitClientBackend() override;
 
     QString repositoryPath() const;
     QVariantList status() const;
     QVariantList submodules() const;
-    QVariantMap repositoryTree() const;
 
     Q_INVOKABLE bool openRepository(const QString &path);
     Q_INVOKABLE void refreshRepository();
@@ -40,7 +40,6 @@ signals:
     void repositoryPathChanged();
     void statusChanged();
     void submodulesChanged();
-    void repositoryTreeChanged();
     void commandExecuted(const QVariantMap &result);
 
 private:
@@ -51,5 +50,5 @@ private:
     QString m_repositoryPath;
     QVariantList m_status;
     QVariantList m_submodules;
-    QVariantMap m_repositoryTree;
+    git_repository *m_repository = nullptr;
 };

@@ -5,9 +5,8 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QVariantMap>
-#include <functional>
-#include <memory>
-#include <vector>
+
+#include <git2.h>
 
 namespace {
 QString interpretStatusCode(const QChar &code)
@@ -25,6 +24,8 @@ QString interpretStatusCode(const QChar &code)
         return QObject::tr("Copied");
     case 'U':
         return QObject::tr("Unmerged");
+    case 'T':
+        return QObject::tr("Type changed");
     case '?':
         return QObject::tr("Untracked");
     case '!':
@@ -53,9 +54,70 @@ QString interpretSubmoduleStatus(const QChar &code)
 }
 }
 
+namespace {
+QChar indexStatusFromFlags(unsigned int status)
+{
+    if (status & GIT_STATUS_INDEX_NEW) {
+        return QChar::fromLatin1('A');
+    }
+    if (status & GIT_STATUS_INDEX_MODIFIED) {
+        return QChar::fromLatin1('M');
+    }
+    if (status & GIT_STATUS_INDEX_DELETED) {
+        return QChar::fromLatin1('D');
+    }
+    if (status & GIT_STATUS_INDEX_RENAMED) {
+        return QChar::fromLatin1('R');
+    }
+    if (status & GIT_STATUS_INDEX_TYPECHANGE) {
+        return QChar::fromLatin1('T');
+    }
+    if (status & GIT_STATUS_CONFLICTED) {
+        return QChar::fromLatin1('U');
+    }
+    return QChar::fromLatin1(' ');
+}
+
+QChar worktreeStatusFromFlags(unsigned int status)
+{
+    if (status & GIT_STATUS_WT_NEW) {
+        return QChar::fromLatin1('?');
+    }
+    if (status & GIT_STATUS_WT_MODIFIED) {
+        return QChar::fromLatin1('M');
+    }
+    if (status & GIT_STATUS_WT_DELETED) {
+        return QChar::fromLatin1('D');
+    }
+    if (status & GIT_STATUS_WT_TYPECHANGE) {
+        return QChar::fromLatin1('T');
+    }
+    if (status & GIT_STATUS_WT_RENAMED) {
+        return QChar::fromLatin1('R');
+    }
+    if (status & GIT_STATUS_WT_UNREADABLE) {
+        return QChar::fromLatin1('!');
+    }
+    if (status & GIT_STATUS_CONFLICTED) {
+        return QChar::fromLatin1('U');
+    }
+    return QChar::fromLatin1(' ');
+}
+}
+
 GitClientBackend::GitClientBackend(QObject *parent)
     : QObject(parent)
 {
+    git_libgit2_init();
+}
+
+GitClientBackend::~GitClientBackend()
+{
+    if (m_repository) {
+        git_repository_free(m_repository);
+        m_repository = nullptr;
+    }
+    git_libgit2_shutdown();
 }
 
 QString GitClientBackend::repositoryPath() const
@@ -71,11 +133,6 @@ QVariantList GitClientBackend::status() const
 QVariantList GitClientBackend::submodules() const
 {
     return m_submodules;
-}
-
-QVariantMap GitClientBackend::repositoryTree() const
-{
-    return m_repositoryTree;
 }
 
 bool GitClientBackend::openRepository(const QString &path)
@@ -108,6 +165,17 @@ bool GitClientBackend::openRepository(const QString &path)
         return true;
     }
 
+    git_repository *repository = nullptr;
+    const QByteArray canonicalUtf8 = canonical.toUtf8();
+    int error = git_repository_open_ext(&repository, canonicalUtf8.constData(), 0, nullptr);
+    if (error != 0) {
+        return false;
+    }
+
+    if (m_repository) {
+        git_repository_free(m_repository);
+    }
+    m_repository = repository;
     m_repositoryPath = canonical;
     emit repositoryPathChanged();
     refreshRepository();
@@ -116,7 +184,7 @@ bool GitClientBackend::openRepository(const QString &path)
 
 void GitClientBackend::refreshRepository()
 {
-    if (m_repositoryPath.isEmpty()) {
+    if (m_repositoryPath.isEmpty() || !m_repository) {
         return;
     }
     updateStatus();
@@ -211,35 +279,75 @@ void GitClientBackend::updateStatus()
 {
     m_status.clear();
 
-    const GitCommandResult result = runGit({"status", "--porcelain"});
-    if (!result.success && result.exitCode != 0) {
+    if (!m_repository) {
         emit statusChanged();
         return;
     }
 
-    for (const QString &line : result.stdOut) {
-        if (line.isEmpty()) {
+    git_status_options options;
+    git_status_options_init(&options, GIT_STATUS_OPTIONS_VERSION);
+    options.show = GIT_STATUS_SHOW_INDEX_AND_WORKDIR;
+    options.flags = GIT_STATUS_OPT_INCLUDE_UNTRACKED | GIT_STATUS_OPT_RECURSE_UNTRACKED_DIRS
+        | GIT_STATUS_OPT_RENAMES_HEAD_TO_INDEX | GIT_STATUS_OPT_RENAMES_INDEX_TO_WORKDIR;
+
+    git_status_list *statusList = nullptr;
+    const int statusError = git_status_list_new(&statusList, m_repository, &options);
+    if (statusError != 0 || !statusList) {
+        emit statusChanged();
+        return;
+    }
+
+    const size_t entryCount = git_status_list_entrycount(statusList);
+    for (size_t i = 0; i < entryCount; ++i) {
+        const git_status_entry *entry = git_status_byindex(statusList, i);
+        if (!entry) {
             continue;
         }
-        const QString indexCode = line.left(1);
-        const QString worktreeCode = line.mid(1, 1);
-        QString filePath = line.mid(3);
+
+        const unsigned int statusFlags = entry->status;
+        const QChar indexCode = indexStatusFromFlags(statusFlags);
+        const QChar worktreeCode = worktreeStatusFromFlags(statusFlags);
+
+        QString filePath;
         QString renameTarget;
-        const int renameIndex = filePath.indexOf(" -> ");
-        if (renameIndex != -1) {
-            renameTarget = filePath.mid(renameIndex + 4);
-            filePath = filePath.left(renameIndex);
+
+        if (entry->index_to_workdir && entry->index_to_workdir->old_file.path) {
+            filePath = QString::fromUtf8(entry->index_to_workdir->old_file.path);
+        } else if (entry->head_to_index && entry->head_to_index->old_file.path) {
+            filePath = QString::fromUtf8(entry->head_to_index->old_file.path);
+        } else if (entry->index_to_workdir && entry->index_to_workdir->new_file.path) {
+            filePath = QString::fromUtf8(entry->index_to_workdir->new_file.path);
+        } else if (entry->head_to_index && entry->head_to_index->new_file.path) {
+            filePath = QString::fromUtf8(entry->head_to_index->new_file.path);
         }
 
-        QVariantMap entry;
-        entry.insert("file", filePath);
-        entry.insert("target", renameTarget);
-        entry.insert("indexStatus", interpretStatusCode(indexCode.isEmpty() ? ' ' : indexCode[0]));
-        entry.insert("worktreeStatus", interpretStatusCode(worktreeCode.isEmpty() ? ' ' : worktreeCode[0]));
-        entry.insert("rawIndex", indexCode.trimmed());
-        entry.insert("rawWorktree", worktreeCode.trimmed());
-        m_status.append(entry);
+        if (entry->index_to_workdir && entry->index_to_workdir->new_file.path
+            && entry->index_to_workdir->old_file.path
+            && QString::fromUtf8(entry->index_to_workdir->new_file.path)
+                != QString::fromUtf8(entry->index_to_workdir->old_file.path)) {
+            renameTarget = QString::fromUtf8(entry->index_to_workdir->new_file.path);
+        } else if (entry->head_to_index && entry->head_to_index->new_file.path
+            && entry->head_to_index->old_file.path
+            && QString::fromUtf8(entry->head_to_index->new_file.path)
+                != QString::fromUtf8(entry->head_to_index->old_file.path)) {
+            renameTarget = QString::fromUtf8(entry->head_to_index->new_file.path);
+        }
+
+        if (filePath.isEmpty()) {
+            continue;
+        }
+
+        QVariantMap statusEntry;
+        statusEntry.insert("file", filePath);
+        statusEntry.insert("target", renameTarget);
+        statusEntry.insert("indexStatus", interpretStatusCode(indexCode));
+        statusEntry.insert("worktreeStatus", interpretStatusCode(worktreeCode));
+        statusEntry.insert("rawIndex", indexCode.isSpace() ? QString() : QString(indexCode));
+        statusEntry.insert("rawWorktree", worktreeCode.isSpace() ? QString() : QString(worktreeCode));
+        m_status.append(statusEntry);
     }
+
+    git_status_list_free(statusList);
 
     emit statusChanged();
 }
@@ -248,120 +356,73 @@ void GitClientBackend::updateSubmodules()
 {
     m_submodules.clear();
 
-    struct TreeNode
-    {
-        QString name;
-        QString fullPath;
-        QString status;
-        QString details;
-        QString commit;
-        QString symbol;
-        std::vector<std::unique_ptr<TreeNode>> children;
-    };
-
-    TreeNode rootNode;
-    const QFileInfo repoInfo(m_repositoryPath);
-    const QString repoDisplayName = repoInfo.fileName().isEmpty() ? repoInfo.absoluteFilePath() : repoInfo.fileName();
-    rootNode.name = repoDisplayName;
-    rootNode.fullPath = m_repositoryPath;
-    rootNode.status = tr("Repository root");
-    rootNode.details = m_repositoryPath;
-
-    std::function<QVariantMap(const TreeNode &)> toVariant = [&](const TreeNode &node) {
-        QVariantMap map;
-        map.insert(QStringLiteral("name"), node.name);
-        map.insert(QStringLiteral("path"), node.fullPath);
-        if (!node.status.isEmpty()) {
-            map.insert(QStringLiteral("status"), node.status);
-        }
-        if (!node.details.isEmpty()) {
-            map.insert(QStringLiteral("details"), node.details);
-        }
-        if (!node.commit.isEmpty()) {
-            map.insert(QStringLiteral("commit"), node.commit);
-        }
-        if (!node.symbol.isEmpty()) {
-            map.insert(QStringLiteral("symbol"), node.symbol);
-        }
-
-        QVariantList childList;
-        childList.reserve(static_cast<int>(node.children.size()));
-        for (const auto &child : node.children) {
-            childList.append(toVariant(*child));
-        }
-        map.insert(QStringLiteral("children"), childList);
-        return map;
-    };
-
-    const GitCommandResult result = runGit({"submodule", "status", "--recursive"});
-    if (!result.success && result.exitCode != 0) {
-        m_repositoryTree = toVariant(rootNode);
+    if (!m_repository) {
         emit submodulesChanged();
-        emit repositoryTreeChanged();
         return;
     }
 
-    QRegularExpression rx(R"(^([ \+\-U])([0-9a-f]+)\s([^\s]+)(?:\s\((.+)\))?$)");
-    for (const QString &line : result.stdOut) {
-        if (line.trimmed().isEmpty()) {
-            continue;
-        }
-        const QRegularExpressionMatch match = rx.match(line);
-        if (!match.hasMatch()) {
-            QVariantMap entry;
-            entry.insert("raw", line);
-            entry.insert("status", tr("Unknown"));
-            m_submodules.append(entry);
-            continue;
-        }
+    struct SubmodulePayload {
+        QVariantList *list = nullptr;
+    } payload{&m_submodules};
 
-        const QString statusSymbol = match.captured(1);
-        const QString commit = match.captured(2);
-        const QString path = match.captured(3);
-        const QString details = match.captured(4);
+    auto callback = [](git_submodule *sm, const char * /*name*/, void *data) -> int {
+        auto *payload = static_cast<SubmodulePayload *>(data);
+        if (!payload || !payload->list) {
+            return 0;
+        }
 
         QVariantMap entry;
-        entry.insert("path", path);
-        entry.insert("commit", commit);
-        entry.insert("status", interpretSubmoduleStatus(statusSymbol[0]));
-        entry.insert("details", details);
-        entry.insert("symbol", statusSymbol.trimmed());
-        m_submodules.append(entry);
 
-        TreeNode *currentNode = &rootNode;
-        QString accumulatedPath;
-        const QStringList segments = path.split('/', Qt::SkipEmptyParts);
-        for (const QString &segment : segments) {
-            accumulatedPath = accumulatedPath.isEmpty() ? segment : accumulatedPath + QLatin1Char('/') + segment;
-
-            TreeNode *existingChild = nullptr;
-            for (const auto &child : currentNode->children) {
-                if (child->name == segment) {
-                    existingChild = child.get();
-                    break;
-                }
-            }
-
-            if (!existingChild) {
-                auto newChild = std::make_unique<TreeNode>();
-                newChild->name = segment;
-                newChild->fullPath = accumulatedPath;
-                existingChild = newChild.get();
-                currentNode->children.push_back(std::move(newChild));
-            }
-
-            currentNode = existingChild;
+        const char *path = git_submodule_path(sm);
+        if (path) {
+            entry.insert("path", QString::fromUtf8(path));
         }
 
-        if (currentNode != &rootNode) {
-            currentNode->status = interpretSubmoduleStatus(statusSymbol[0]);
-            currentNode->details = details;
-            currentNode->commit = commit;
-            currentNode->symbol = statusSymbol.trimmed();
+        const git_oid *oid = git_submodule_head_id(sm);
+        if (!oid) {
+            oid = git_submodule_index_id(sm);
         }
-    }
+        if (!oid) {
+            oid = git_submodule_wd_id(sm);
+        }
+        if (oid) {
+            char oidStr[GIT_OID_HEXSZ + 1] = {0};
+            git_oid_tostr(oidStr, sizeof(oidStr), oid);
+            entry.insert("commit", QString::fromUtf8(oidStr));
+        }
+
+        unsigned int statusFlags = 0;
+        git_repository *repo = git_submodule_owner(sm);
+        const char *submoduleName = git_submodule_name(sm);
+        if (repo && submoduleName) {
+            git_submodule_status(&statusFlags, repo, submoduleName, GIT_SUBMODULE_IGNORE_NONE);
+        }
+
+        QChar symbol = QChar::fromLatin1(' ');
+        if (statusFlags & GIT_SUBMODULE_STATUS_WD_CONFLICT) {
+            symbol = QChar::fromLatin1('U');
+        } else if (statusFlags & GIT_SUBMODULE_STATUS_WD_UNINITIALIZED) {
+            symbol = QChar::fromLatin1('-');
+        } else if (statusFlags & (GIT_SUBMODULE_STATUS_INDEX_MODIFIED | GIT_SUBMODULE_STATUS_WD_MODIFIED
+                                   | GIT_SUBMODULE_STATUS_WD_INDEX_MODIFIED
+                                   | GIT_SUBMODULE_STATUS_WD_UNTRACKED | GIT_SUBMODULE_STATUS_INDEX_ADDED
+                                   | GIT_SUBMODULE_STATUS_INDEX_DELETED)) {
+            symbol = QChar::fromLatin1('+');
+        }
+
+        const char *url = git_submodule_url(sm);
+        if (url) {
+            entry.insert("details", QString::fromUtf8(url));
+        }
+
+        entry.insert("status", interpretSubmoduleStatus(symbol));
+        entry.insert("symbol", symbol.isSpace() ? QString() : QString(symbol));
+
+        payload->list->append(entry);
+        return 0;
+    };
+
+    git_submodule_foreach(m_repository, callback, &payload);
 
     emit submodulesChanged();
-    m_repositoryTree = toVariant(rootNode);
-    emit repositoryTreeChanged();
 }
