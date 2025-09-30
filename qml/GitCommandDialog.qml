@@ -21,7 +21,7 @@ Dialog {
 
     contentItem: ColumnLayout {
         spacing: 12
-        padding: 12
+        //padding: 12
 
         Label {
             text: qsTr("Enter arguments as you would after the 'git' command.")

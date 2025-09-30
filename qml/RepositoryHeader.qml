@@ -11,7 +11,7 @@ ToolBar {
     RowLayout {
         anchors.fill: parent
         spacing: 12
-        padding: 8
+        //padding: 8
 
         ToolButton {
             icon.source: "qrc:/GitGenius/assets/icons/repository.svg"

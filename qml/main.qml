@@ -1,7 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
-import QtQuick.Dialogs 1.3
+import QtQuick.Dialogs
 
 ApplicationWindow {
     id: window
@@ -119,7 +119,7 @@ ApplicationWindow {
         }
         contentItem: ColumnLayout {
             spacing: 12
-            padding: 12
+            //padding: 12
             TextArea {
                 id: commitMessage
                 placeholderText: qsTr("Describe your changes")
