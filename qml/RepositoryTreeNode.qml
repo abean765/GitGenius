@@ -62,7 +62,7 @@ ColumnLayout {
             Layout.preferredWidth: 200
         }
     }
-
+/*
     Column {
         id: childrenContainer
         Layout.fillWidth: true
@@ -79,4 +79,5 @@ ColumnLayout {
             }
         }
     }
+*/
 }
