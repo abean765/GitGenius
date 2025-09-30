@@ -5,6 +5,8 @@
 #include <QStringList>
 #include <QVariantList>
 
+struct git_repository;
+
 struct GitCommandResult
 {
     bool success = false;
@@ -22,6 +24,7 @@ class GitClientBackend : public QObject
 
 public:
     explicit GitClientBackend(QObject *parent = nullptr);
+    ~GitClientBackend() override;
 
     QString repositoryPath() const;
     QVariantList status() const;
@@ -47,4 +50,5 @@ private:
     QString m_repositoryPath;
     QVariantList m_status;
     QVariantList m_submodules;
+    git_repository *m_repository = nullptr;
 };

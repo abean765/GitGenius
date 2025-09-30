@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Quick QuickControls2)
+find_package(LibGit2 REQUIRED)
 
 qt_standard_project_setup()
 
@@ -38,6 +39,7 @@ target_link_libraries(appGitGenius
     PRIVATE
         Qt6::Quick
         Qt6::QuickControls2
+        LibGit2::LibGit2
 )
 
 install(TARGETS appGitGenius)
