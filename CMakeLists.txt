@@ -20,6 +20,8 @@ qt_add_qml_module(appGitGenius
         qml/RepositoryHeader.qml
         qml/StatusList.qml
         qml/SubmoduleList.qml
+        qml/RepositoryTreeNode.qml
+        qml/RepositoryTreeView.qml
         qml/GitCommandDialog.qml
     RESOURCES
         assets/icons/repository.svg

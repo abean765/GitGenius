@@ -5,6 +5,9 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QVariantMap>
+#include <functional>
+#include <memory>
+#include <vector>
 
 namespace {
 QString interpretStatusCode(const QChar &code)
@@ -68,6 +71,11 @@ QVariantList GitClientBackend::status() const
 QVariantList GitClientBackend::submodules() const
 {
     return m_submodules;
+}
+
+QVariantMap GitClientBackend::repositoryTree() const
+{
+    return m_repositoryTree;
 }
 
 bool GitClientBackend::openRepository(const QString &path)
@@ -240,9 +248,56 @@ void GitClientBackend::updateSubmodules()
 {
     m_submodules.clear();
 
+    struct TreeNode
+    {
+        QString name;
+        QString fullPath;
+        QString status;
+        QString details;
+        QString commit;
+        QString symbol;
+        std::vector<std::unique_ptr<TreeNode>> children;
+    };
+
+    TreeNode rootNode;
+    const QFileInfo repoInfo(m_repositoryPath);
+    const QString repoDisplayName = repoInfo.fileName().isEmpty() ? repoInfo.absoluteFilePath() : repoInfo.fileName();
+    rootNode.name = repoDisplayName;
+    rootNode.fullPath = m_repositoryPath;
+    rootNode.status = tr("Repository root");
+    rootNode.details = m_repositoryPath;
+
+    std::function<QVariantMap(const TreeNode &)> toVariant = [&](const TreeNode &node) {
+        QVariantMap map;
+        map.insert(QStringLiteral("name"), node.name);
+        map.insert(QStringLiteral("path"), node.fullPath);
+        if (!node.status.isEmpty()) {
+            map.insert(QStringLiteral("status"), node.status);
+        }
+        if (!node.details.isEmpty()) {
+            map.insert(QStringLiteral("details"), node.details);
+        }
+        if (!node.commit.isEmpty()) {
+            map.insert(QStringLiteral("commit"), node.commit);
+        }
+        if (!node.symbol.isEmpty()) {
+            map.insert(QStringLiteral("symbol"), node.symbol);
+        }
+
+        QVariantList childList;
+        childList.reserve(static_cast<int>(node.children.size()));
+        for (const auto &child : node.children) {
+            childList.append(toVariant(*child));
+        }
+        map.insert(QStringLiteral("children"), childList);
+        return map;
+    };
+
     const GitCommandResult result = runGit({"submodule", "status", "--recursive"});
     if (!result.success && result.exitCode != 0) {
+        m_repositoryTree = toVariant(rootNode);
         emit submodulesChanged();
+        emit repositoryTreeChanged();
         return;
     }
 
@@ -272,7 +327,41 @@ void GitClientBackend::updateSubmodules()
         entry.insert("details", details);
         entry.insert("symbol", statusSymbol.trimmed());
         m_submodules.append(entry);
+
+        TreeNode *currentNode = &rootNode;
+        QString accumulatedPath;
+        const QStringList segments = path.split('/', Qt::SkipEmptyParts);
+        for (const QString &segment : segments) {
+            accumulatedPath = accumulatedPath.isEmpty() ? segment : accumulatedPath + QLatin1Char('/') + segment;
+
+            TreeNode *existingChild = nullptr;
+            for (const auto &child : currentNode->children) {
+                if (child->name == segment) {
+                    existingChild = child.get();
+                    break;
+                }
+            }
+
+            if (!existingChild) {
+                auto newChild = std::make_unique<TreeNode>();
+                newChild->name = segment;
+                newChild->fullPath = accumulatedPath;
+                existingChild = newChild.get();
+                currentNode->children.push_back(std::move(newChild));
+            }
+
+            currentNode = existingChild;
+        }
+
+        if (currentNode != &rootNode) {
+            currentNode->status = interpretSubmoduleStatus(statusSymbol[0]);
+            currentNode->details = details;
+            currentNode->commit = commit;
+            currentNode->symbol = statusSymbol.trimmed();
+        }
     }
 
     emit submodulesChanged();
+    m_repositoryTree = toVariant(rootNode);
+    emit repositoryTreeChanged();
 }
