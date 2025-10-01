@@ -399,9 +399,9 @@ void GitClientBackend::updateSubmodules()
         }
 
         QChar symbol = QChar::fromLatin1(' ');
-        if (statusFlags & GIT_SUBMODULE_STATUS_WD_CONFLICT) {
+      /*  if (statusFlags & GIT_SUBMODULE_STATUS_WD_CONFLICT) {
             symbol = QChar::fromLatin1('U');
-        } else if (statusFlags & GIT_SUBMODULE_STATUS_WD_UNINITIALIZED) {
+        } else  */ if (statusFlags & GIT_SUBMODULE_STATUS_WD_UNINITIALIZED) {
             symbol = QChar::fromLatin1('-');
         } else if (statusFlags & (GIT_SUBMODULE_STATUS_INDEX_MODIFIED | GIT_SUBMODULE_STATUS_WD_MODIFIED
                                    | GIT_SUBMODULE_STATUS_WD_INDEX_MODIFIED

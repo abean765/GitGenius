@@ -4,8 +4,15 @@ project(GitGenius LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(BUILD_CLAR OFF CACHE BOOL "" FORCE) # libgit2-spezifische Tests
+set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
+
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+
+add_subdirectory(3rdparty/libgit2)
+
 find_package(Qt6 6.5 REQUIRED COMPONENTS Quick QuickControls2)
-find_package(LibGit2 REQUIRED)
 
 qt_standard_project_setup()
 
@@ -37,11 +44,14 @@ set_target_properties(appGitGenius PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
 
+
 target_link_libraries(appGitGenius
     PRIVATE
         Qt6::Quick
         Qt6::QuickControls2
-        LibGit2::LibGit2
+        libgit2package
 )
+
+target_include_directories(appGitGenius PRIVATE 3rdparty/libgit2/include)
 
 install(TARGETS appGitGenius)
