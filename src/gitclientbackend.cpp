@@ -8,6 +8,8 @@
 
 #include <git2.h>
 
+#include "commithistorymodel.h"
+
 namespace {
 QString interpretStatusCode(const QChar &code)
 {
@@ -107,8 +109,12 @@ QChar worktreeStatusFromFlags(unsigned int status)
 
 GitClientBackend::GitClientBackend(QObject *parent)
     : QObject(parent)
+    , m_commitHistoryModel(new CommitHistoryModel(this))
 {
     git_libgit2_init();
+
+    connect(m_commitHistoryModel, &CommitHistoryModel::branchesChanged, this, &GitClientBackend::branchesChanged);
+    connect(m_commitHistoryModel, &CommitHistoryModel::currentBranchChanged, this, &GitClientBackend::currentBranchChanged);
 }
 
 GitClientBackend::~GitClientBackend()
@@ -116,6 +122,9 @@ GitClientBackend::~GitClientBackend()
     if (m_repository) {
         git_repository_free(m_repository);
         m_repository = nullptr;
+    }
+    if (m_commitHistoryModel) {
+        m_commitHistoryModel->setRepository(nullptr);
     }
     git_libgit2_shutdown();
 }
@@ -133,6 +142,27 @@ QVariantList GitClientBackend::status() const
 QVariantList GitClientBackend::submodules() const
 {
     return m_submodules;
+}
+
+QStringList GitClientBackend::branches() const
+{
+    if (!m_commitHistoryModel) {
+        return {};
+    }
+    return m_commitHistoryModel->branches();
+}
+
+QString GitClientBackend::currentBranch() const
+{
+    if (!m_commitHistoryModel) {
+        return {};
+    }
+    return m_commitHistoryModel->currentBranch();
+}
+
+QObject *GitClientBackend::commitHistoryModel() const
+{
+    return m_commitHistoryModel;
 }
 
 bool GitClientBackend::openRepository(const QUrl &url)
@@ -173,6 +203,9 @@ bool GitClientBackend::openRepository(const QUrl &url)
     }
     m_repository = repository;
     m_repositoryPath = canonical;
+    if (m_commitHistoryModel) {
+        m_commitHistoryModel->setRepository(m_repository);
+    }
     emit repositoryPathChanged();
     refreshRepository();
     return true;
@@ -185,6 +218,9 @@ void GitClientBackend::refreshRepository()
     }
     updateStatus();
     updateSubmodules();
+    if (m_commitHistoryModel) {
+        m_commitHistoryModel->reload();
+    }
 }
 
 QVariantMap GitClientBackend::runCustomCommand(const QStringList &arguments)
@@ -199,6 +235,9 @@ QVariantMap GitClientBackend::runCustomCommand(const QStringList &arguments)
     if (result.success) {
         updateStatus();
         updateSubmodules();
+        if (m_commitHistoryModel) {
+            m_commitHistoryModel->reload();
+        }
     }
     return payload;
 }
@@ -227,8 +266,19 @@ bool GitClientBackend::commit(const QString &message)
     if (result.success) {
         updateStatus();
         updateSubmodules();
+        if (m_commitHistoryModel) {
+            m_commitHistoryModel->reload();
+        }
     }
     return result.success;
+}
+
+void GitClientBackend::setCurrentBranch(const QString &branchName)
+{
+    if (!m_commitHistoryModel) {
+        return;
+    }
+    m_commitHistoryModel->setCurrentBranch(branchName);
 }
 
 GitCommandResult GitClientBackend::runGit(const QStringList &arguments, const QByteArray &input) const
