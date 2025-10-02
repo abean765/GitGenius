@@ -172,90 +172,91 @@ Frame {
                     anchors.fill: parent
                     anchors.margins: 12
                     spacing: 12
-                    implicitHeight: childrenRect.height
+                    //implicitHeight: childrenRect.height
 
                     Repeater {
                         model: submoduleModel
 
                         delegate: Item {
-                        width: root.cardSize
-                        height: root.cardSize
+                            width: root.cardSize
+                            height: root.cardSize
 
-                        readonly property string repoName: modelData.name || modelData.path || modelData.raw || ""
-                        readonly property string displayName: root.leafName(repoName)
-                        readonly property color baseColor: root.colorFromString(displayName || repoName)
-                        readonly property string abbrev: root.abbreviationForName(displayName || repoName, 5)
+                            readonly property string repoName: modelData.name || modelData.path || modelData.raw || ""
+                            readonly property string displayName: root.leafName(repoName)
+                            readonly property color baseColor: root.colorFromString(displayName || repoName)
+                            readonly property string abbrev: root.abbreviationForName(displayName || repoName, 5)
 
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: 12
-                            color: baseColor
-                            border.color: Qt.darker(baseColor, 1.2)
-                            border.width: 1
-
-                            Column {
-                                anchors.centerIn: parent
-                                width: parent.width - 24
-                                spacing: 6
-
-                                Label {
-                                    text: abbrev
-                                    font.bold: true
-                                    font.pixelSize: 28
-                                    color: root.textColorForBackground(baseColor, false)
-                                    horizontalAlignment: Text.AlignHCenter
-                                    verticalAlignment: Text.AlignVCenter
-                                    width: parent.width
-                                }
-
-                                Label {
-                                    text: displayName
-                                    font.pixelSize: 12
-                                    wrapMode: Label.WordWrap
-                                    horizontalAlignment: Text.AlignHCenter
-                                    color: root.textColorForBackground(baseColor, true)
-                                }
-
-                                Label {
-                                    text: modelData.status || qsTr("Unknown")
-                                    font.pixelSize: 11
-                                    horizontalAlignment: Text.AlignHCenter
-                                    color: root.textColorForBackground(baseColor, true)
-                                }
-                            }
-
-                            MouseArea {
+                            Rectangle {
                                 anchors.fill: parent
-                                hoverEnabled: true
-                                acceptedButtons: Qt.NoButton
-                                id: hoverArea
-                            }
+                                radius: 12
+                                color: baseColor
+                                border.color: Qt.darker(baseColor, 1.2)
+                                border.width: 1
 
-                            ToolTip.visible: hoverArea.containsMouse
-                            ToolTip.text: {
-                                var parts = [];
-                                if (displayName)
-                                    parts.push(displayName);
-                                if (repoName && repoName !== displayName)
-                                    parts.push(repoName);
-                                if (modelData.details)
-                                    parts.push(modelData.details);
-                                if (modelData.commit)
-                                    parts.push(qsTr("Commit %1").arg(modelData.commit));
-                                return parts.join("\n");
+                                Column {
+                                    anchors.centerIn: parent
+                                    width: parent.width - 24
+                                    spacing: 6
+
+                                    Label {
+                                        text: abbrev
+                                        font.bold: true
+                                        font.pixelSize: 28
+                                        color: root.textColorForBackground(baseColor, false)
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                        width: parent.width
+                                    }
+
+                                    Label {
+                                        text: displayName
+                                        font.pixelSize: 12
+                                        wrapMode: Label.WordWrap
+                                        horizontalAlignment: Text.AlignHCenter
+                                        color: root.textColorForBackground(baseColor, true)
+                                    }
+
+                                    Label {
+                                        text: modelData.status || qsTr("Unknown")
+                                        font.pixelSize: 11
+                                        horizontalAlignment: Text.AlignHCenter
+                                        color: root.textColorForBackground(baseColor, true)
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    acceptedButtons: Qt.NoButton
+                                    id: hoverArea
+                                }
+
+                                ToolTip.visible: hoverArea.containsMouse
+                                ToolTip.text: {
+                                    var parts = [];
+                                    if (displayName)
+                                        parts.push(displayName);
+                                    if (repoName && repoName !== displayName)
+                                        parts.push(repoName);
+                                    if (modelData.details)
+                                        parts.push(modelData.details);
+                                    if (modelData.commit)
+                                        parts.push(qsTr("Commit %1").arg(modelData.commit));
+                                    return parts.join("\n");
+                                }
                             }
                         }
                     }
                 }
             }
-        }
 
-        Label {
-            visible: submoduleModel.length === 0
-            text: qsTr("No submodules detected")
-            horizontalAlignment: Text.AlignHCenter
-            Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
-            opacity: 0.6
+            Label {
+                visible: submoduleModel.length === 0
+                text: qsTr("No submodules detected")
+                horizontalAlignment: Text.AlignHCenter
+                Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+                opacity: 0.6
+            }
         }
     }
 }
