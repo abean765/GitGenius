@@ -371,7 +371,15 @@ void CommitHistoryModel::collectCommits()
 
     QVector<int> laneOrder;
     QHash<QString, int> futureLanes;
+    QHash<QString, int> laneByCommit;
     m_nextLeft = true;
+
+    auto ensureMainlineLane = [](QVector<int> &lanes) {
+        if (!lanes.contains(0)) {
+            lanes.append(0);
+            std::sort(lanes.begin(), lanes.end());
+        }
+    };
 
     for (CommitEntry entry : collected) {
         pendingIds.remove(entry.oid);
@@ -379,6 +387,8 @@ void CommitHistoryModel::collectCommits()
         entry.lanesBefore.clear();
         entry.lanesAfter.clear();
         entry.connections.clear();
+
+        ensureMainlineLane(laneOrder);
 
         QSet<int> used;
         for (int lane : laneOrder) {
@@ -389,13 +399,18 @@ void CommitHistoryModel::collectCommits()
         }
 
         int laneValue = 0;
-        if (futureLanes.contains(entry.oid)) {
-            laneValue = futureLanes.take(entry.oid);
+        if (laneByCommit.contains(entry.oid)) {
+            laneValue = laneByCommit.value(entry.oid);
         } else if (entry.mainline) {
             laneValue = 0;
+        } else if (futureLanes.contains(entry.oid)) {
+            laneValue = futureLanes.value(entry.oid);
         } else {
             laneValue = allocateLane(used);
         }
+        futureLanes.remove(entry.oid);
+        laneByCommit.insert(entry.oid, laneValue);
+        used.insert(laneValue);
         if (!laneOrder.contains(laneValue)) {
             laneOrder.append(laneValue);
             std::sort(laneOrder.begin(), laneOrder.end());
@@ -417,13 +432,14 @@ void CommitHistoryModel::collectCommits()
 
             const bool parentMainline = mainline.contains(parentId);
             int parentLane = 0;
-            if (futureLanes.contains(parentId)) {
-                parentLane = futureLanes.value(parentId);
+            if (laneByCommit.contains(parentId)) {
+                parentLane = laneByCommit.value(parentId);
             } else if (parentMainline) {
                 parentLane = 0;
             } else {
                 parentLane = allocateLane(used);
             }
+            laneByCommit.insert(parentId, parentLane);
             used.insert(parentLane);
             if (pendingIds.contains(parentId)) {
                 futureLanes.insert(parentId, parentLane);
@@ -454,6 +470,7 @@ void CommitHistoryModel::collectCommits()
         }
         laneOrder = futureUsed.values().toVector();
         std::sort(laneOrder.begin(), laneOrder.end());
+        ensureMainlineLane(laneOrder);
 
         entry.lanesAfter = laneOrder;
         for (int lane : entry.lanesAfter) {
