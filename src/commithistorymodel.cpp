@@ -139,6 +139,12 @@ QString CommitHistoryModel::currentBranch() const
     return m_currentBranch;
 }
 
+int CommitHistoryModel::maxLaneOffset() const
+{
+    const int maxMagnitude = std::max(qAbs(m_minLane), qAbs(m_maxLane));
+    return maxMagnitude;
+}
+
 void CommitHistoryModel::setRepository(git_repository *repository)
 {
     if (m_repository == repository) {
@@ -235,18 +241,30 @@ void CommitHistoryModel::updateBranches()
 
 void CommitHistoryModel::collectCommits()
 {
+    const int previousMin = m_minLane;
+    const int previousMax = m_maxLane;
+
     beginResetModel();
     m_entries.clear();
+    m_minLane = 0;
+    m_maxLane = 0;
+
+    auto finish = [&]() {
+        endResetModel();
+        if (previousMin != m_minLane || previousMax != m_maxLane) {
+            emit laneSpanChanged();
+        }
+    };
 
     if (!m_repository || m_currentBranch.isEmpty()) {
-        endResetModel();
+        finish();
         return;
     }
 
     const QByteArray refName = QByteArrayLiteral("refs/heads/") + m_currentBranch.toUtf8();
     git_reference *branchRef = nullptr;
     if (git_reference_lookup(&branchRef, m_repository, refName.constData()) != 0) {
-        endResetModel();
+        finish();
         return;
     }
 
@@ -267,7 +285,7 @@ void CommitHistoryModel::collectCommits()
     git_reference_free(branchRef);
 
     if (git_oid_is_zero(&headOid)) {
-        endResetModel();
+        finish();
         return;
     }
 
@@ -276,13 +294,13 @@ void CommitHistoryModel::collectCommits()
 
     git_revwalk *walker = nullptr;
     if (git_revwalk_new(&walker, m_repository) != 0) {
-        endResetModel();
+        finish();
         return;
     }
     git_revwalk_sorting(walker, GIT_SORT_TOPOLOGICAL | GIT_SORT_TIME);
     if (git_revwalk_push_ref(walker, refName.constData()) != 0) {
         git_revwalk_free(walker);
-        endResetModel();
+        finish();
         return;
     }
 
@@ -355,7 +373,13 @@ void CommitHistoryModel::collectCommits()
         }
 
         entry.lanesBefore = laneOrder;
+        for (int lane : entry.lanesBefore) {
+            m_minLane = std::min(m_minLane, lane);
+            m_maxLane = std::max(m_maxLane, lane);
+        }
         entry.laneValue = laneValue;
+        m_minLane = std::min(m_minLane, entry.laneValue);
+        m_maxLane = std::max(m_maxLane, entry.laneValue);
 
         QVector<int> parentLanes;
         parentLanes.reserve(entry.parentIds.size());
@@ -374,6 +398,9 @@ void CommitHistoryModel::collectCommits()
             futureLanes.insert(parentId, parentLane);
             parentLanes.append(parentLane);
 
+            m_minLane = std::min(m_minLane, parentLane);
+            m_maxLane = std::max(m_maxLane, parentLane);
+
             Connection connection;
             connection.fromLane = laneValue;
             connection.toLane = parentLane;
@@ -390,6 +417,10 @@ void CommitHistoryModel::collectCommits()
         std::sort(laneOrder.begin(), laneOrder.end());
 
         entry.lanesAfter = laneOrder;
+        for (int lane : entry.lanesAfter) {
+            m_minLane = std::min(m_minLane, lane);
+            m_maxLane = std::max(m_maxLane, lane);
+        }
 
         m_entries.append(entry);
         ++processed;
@@ -421,7 +452,7 @@ void CommitHistoryModel::collectCommits()
         m_entries[index].groupSize = currentCount;
     }
 
-    endResetModel();
+    finish();
 }
 
 void CommitHistoryModel::computeMainline(const git_oid &headOid, QSet<QString> &outMainline) const

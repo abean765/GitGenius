@@ -15,6 +15,7 @@ class CommitHistoryModel : public QAbstractListModel
     Q_OBJECT
     Q_PROPERTY(QStringList branches READ branches NOTIFY branchesChanged FINAL)
     Q_PROPERTY(QString currentBranch READ currentBranch WRITE setCurrentBranch NOTIFY currentBranchChanged FINAL)
+    Q_PROPERTY(int maxLaneOffset READ maxLaneOffset NOTIFY laneSpanChanged FINAL)
 
 public:
     enum Roles {
@@ -45,6 +46,7 @@ public:
 
     QStringList branches() const;
     QString currentBranch() const;
+    int maxLaneOffset() const;
 
     void setRepository(git_repository *repository);
     Q_INVOKABLE void setCurrentBranch(const QString &branchName);
@@ -53,6 +55,7 @@ public:
 signals:
     void branchesChanged();
     void currentBranchChanged();
+    void laneSpanChanged();
 
 private:
     struct Connection {
@@ -95,5 +98,7 @@ private:
     QString m_currentBranch;
     QVector<CommitEntry> m_entries;
     bool m_nextLeft = true;
+    int m_minLane = 0;
+    int m_maxLane = 0;
 };
 

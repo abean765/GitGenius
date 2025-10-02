@@ -11,6 +11,12 @@ Frame {
     property color branchColor: Qt.rgba(0.54, 0.59, 0.63, 1)
     property real laneSpacing: 28
     property var expandedGroups: ({})
+    property real graphColumnWidth: {
+        const model = historyList ? historyList.model : null
+        const maxOffset = model && model.maxLaneOffset !== undefined ? model.maxLaneOffset : 0
+        const laneCount = Math.max(1, maxOffset * 2 + 1)
+        return Math.max(240, laneCount * root.laneSpacing + 40)
+    }
 
     signal branchSelected(string branch)
 
@@ -81,7 +87,7 @@ Frame {
             Layout.fillHeight: true
             clip: true
             boundsBehavior: Flickable.StopAtBounds
-            spacing: 4
+            spacing: 0
             cacheBuffer: 480
 
             delegate: Item {
@@ -114,7 +120,10 @@ Frame {
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.margins: 4
+                        anchors.topMargin: 0
+                        anchors.bottomMargin: 0
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
                         spacing: 16
 
                         Item {
@@ -167,9 +176,9 @@ Frame {
 
                         Item {
                             id: graphContainer
-                            Layout.preferredWidth: Math.max(220, (lanesBeforeData ? lanesBeforeData.length : 0) * root.laneSpacing + 80)
-                            Layout.minimumWidth: 220
-                            Layout.maximumWidth: 360
+                            Layout.preferredWidth: root.graphColumnWidth
+                            Layout.minimumWidth: root.graphColumnWidth
+                            Layout.maximumWidth: root.graphColumnWidth
                             Layout.fillHeight: true
                             implicitHeight: Math.max((laneValue >= 0 ? textColumn.implicitHeight : leftColumn.implicitHeight) + 16, 84)
 
