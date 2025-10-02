@@ -2,16 +2,15 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 
+#include "backend.h"
 #include "gitclientbackend.h"
 
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
 
-    GitClientBackend backend;
-
     QQmlApplicationEngine engine;
-    engine.rootContext()->setContextProperty("gitBackend", &backend);
+
     const QUrl url(u"qrc:/GitGenius/qml/main.qml"_qs);
     QObject::connect(
         &engine,
@@ -23,6 +22,13 @@ int main(int argc, char *argv[])
             }
         },
         Qt::QueuedConnection);
+
+    Backend backend;
+    GitClientBackend gitBackend;
+
+    engine.rootContext()->setContextProperty("backend", &backend);
+    engine.rootContext()->setContextProperty("gitBackend", &gitBackend);
+
     engine.load(url);
 
     return app.exec();

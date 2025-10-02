@@ -135,16 +135,12 @@ QVariantList GitClientBackend::submodules() const
     return m_submodules;
 }
 
-bool GitClientBackend::openRepository(const QString &path)
+bool GitClientBackend::openRepository(const QUrl &url)
 {
-    const QFileInfo info(path);
-    if (!info.exists()) {
+    QDir dir(url.toLocalFile());
+    if (!dir.exists())
+    {
         return false;
-    }
-
-    QDir dir(info.isDir() ? info.absoluteFilePath() : info.absolutePath());
-    if (info.isDir() && info.fileName() == QStringLiteral(".git")) {
-        dir.cdUp();
     }
 
     const QFileInfo gitEntry(dir.absoluteFilePath(QStringLiteral(".git")));

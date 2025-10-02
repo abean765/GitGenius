@@ -55,18 +55,8 @@ ApplicationWindow {
     FolderDialog {
         id: repositoryDialog
         title: qsTr("Open Git Repository")
-        onAccepted: {
-            var localPath = ""
-            if (folder && folder.toLocalFile) {
-                localPath = folder.toLocalFile()
-            } else if (folder && folder.toString) {
-                localPath = folder.toString()
-            } else if (typeof folder === "string") {
-                localPath = folder
-            }
-            if (localPath.length > 0) {
-                gitBackend.openRepository(localPath)
-            }
+        onAccepted: {            
+            gitBackend.openRepository(repositoryDialog.currentFolder)
         }
     }
 

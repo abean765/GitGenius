@@ -4,6 +4,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVariantList>
+#include <QUrl>
 
 struct git_repository;
 
@@ -30,7 +31,7 @@ public:
     QVariantList status() const;
     QVariantList submodules() const;
 
-    Q_INVOKABLE bool openRepository(const QString &path);
+    Q_INVOKABLE bool openRepository(const QUrl &url);
     Q_INVOKABLE void refreshRepository();
     Q_INVOKABLE QVariantMap runCustomCommand(const QStringList &arguments);
     Q_INVOKABLE bool stageFiles(const QStringList &files);

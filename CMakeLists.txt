@@ -3,6 +3,7 @@ project(GitGenius LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(QML_DEBUG TRUE)
 
 set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(BUILD_CLAR OFF CACHE BOOL "" FORCE) # libgit2-spezifische Tests
@@ -37,6 +38,8 @@ qt_add_qml_module(appGitGenius
         assets/icons/submodule.svg
     SOURCES
         src/gitclientbackend.h src/gitclientbackend.cpp
+        SOURCES
+        SOURCES src/backend.h src/backend.cpp
 )
 
 set_target_properties(appGitGenius PROPERTIES
