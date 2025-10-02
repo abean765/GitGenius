@@ -387,9 +387,13 @@ void GitClientBackend::updateSubmodules()
             entry.insert("commit", QString::fromUtf8(oidStr));
         }
 
+        const char *submoduleName = git_submodule_name(sm);
+        if (submoduleName) {
+            entry.insert("name", QString::fromUtf8(submoduleName));
+        }
+
         unsigned int statusFlags = 0;
         git_repository *repo = git_submodule_owner(sm);
-        const char *submoduleName = git_submodule_name(sm);
         if (repo && submoduleName) {
             git_submodule_status(&statusFlags, repo, submoduleName, GIT_SUBMODULE_IGNORE_NONE);
         }
