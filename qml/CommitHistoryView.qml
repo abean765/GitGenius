@@ -118,69 +118,19 @@ Frame {
                     color: "transparent"
                     implicitHeight: graphContainer.implicitHeight + 12
 
-                    RowLayout {
+                    Item {
                         anchors.fill: parent
                         anchors.topMargin: 0
                         anchors.bottomMargin: 0
                         anchors.leftMargin: 8
                         anchors.rightMargin: 8
-                        spacing: 16
-
-                        Item {
-                            id: leftContainer
-                            Layout.fillWidth: laneValue < 0
-                            Layout.preferredWidth: laneValue < 0 ? 240 : 0
-                            visible: laneValue < 0
-                            implicitHeight: graphCanvas.implicitHeight
-
-                            ColumnLayout {
-                                id: leftColumn
-                                anchors.fill: parent
-                                anchors.right: parent.right
-                                spacing: 6
-
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 6
-                                    visible: true
-
-                                    ToolButton {
-                                        visible: header
-                                        text: header && groupExpanded ? "−" : "+"
-                                        font.bold: true
-                                        onClicked: root.toggleGroup(groupKey)
-                                    }
-
-                                    Text {
-                                        id: leftSummaryLabel
-                                        Layout.fillWidth: true
-                                        text: laneValue < 0 ? leftSummary : summary
-                                        textFormat: Text.PlainText
-                                        wrapMode: Text.Wrap
-                                        horizontalAlignment: Text.AlignRight
-                                        font.pointSize: 11
-                                    }
-                                }
-
-                                Text {
-                                    id: leftMeta
-                                    Layout.fillWidth: true
-                                    text: laneValue < 0 ? `${author} • ${relativeTime} • ${shortOid}` : ""
-                                    font.pointSize: 9
-                                    color: Qt.rgba(0.5, 0.55, 0.6, 1)
-                                    horizontalAlignment: Text.AlignRight
-                                    wrapMode: Text.NoWrap
-                                }
-                            }
-                        }
 
                         Item {
                             id: graphContainer
-                            Layout.preferredWidth: root.graphColumnWidth
-                            Layout.minimumWidth: root.graphColumnWidth
-                            Layout.maximumWidth: root.graphColumnWidth
-                            Layout.fillHeight: true
+                            width: root.graphColumnWidth
                             implicitHeight: Math.max((laneValue >= 0 ? textColumn.implicitHeight : leftColumn.implicitHeight) + 16, 84)
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.horizontalCenter: parent.horizontalCenter
 
                             Canvas {
                                 id: graphCanvas
@@ -254,12 +204,65 @@ Frame {
                                 onWidthChanged: requestPaint()
                                 onHeightChanged: requestPaint()
                             }
+                    }
+
+                        Item {
+                            id: leftContainer
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            anchors.left: parent.left
+                            anchors.right: graphContainer.left
+                            anchors.rightMargin: 16
+                            visible: laneValue < 0
+                            implicitHeight: graphCanvas.implicitHeight
+
+                            ColumnLayout {
+                                id: leftColumn
+                                anchors.fill: parent
+                                anchors.right: parent.right
+                                spacing: 6
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 6
+
+                                    ToolButton {
+                                        visible: header
+                                        text: header && groupExpanded ? "−" : "+"
+                                        font.bold: true
+                                        onClicked: root.toggleGroup(groupKey)
+                                    }
+
+                                    Text {
+                                        id: leftSummaryLabel
+                                        Layout.fillWidth: true
+                                        text: laneValue < 0 ? leftSummary : summary
+                                        textFormat: Text.PlainText
+                                        wrapMode: Text.Wrap
+                                        horizontalAlignment: Text.AlignRight
+                                        font.pointSize: 11
+                                    }
+                                }
+
+                                Text {
+                                    id: leftMeta
+                                    Layout.fillWidth: true
+                                    text: laneValue < 0 ? `${author} • ${relativeTime} • ${shortOid}` : ""
+                                    font.pointSize: 9
+                                    color: Qt.rgba(0.5, 0.55, 0.6, 1)
+                                    horizontalAlignment: Text.AlignRight
+                                    wrapMode: Text.NoWrap
+                                }
+                            }
                         }
 
                         Item {
                             id: rightContainer
-                            Layout.fillWidth: true
-                            Layout.preferredWidth: laneValue >= 0 ? 320 : 0
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            anchors.left: graphContainer.right
+                            anchors.leftMargin: 16
+                            anchors.right: parent.right
                             visible: laneValue >= 0
                             implicitHeight: graphCanvas.implicitHeight
 
