@@ -32,12 +32,14 @@ qt_add_qml_module(appGitGenius
         qml/RepositoryTreeNode.qml
         qml/RepositoryTreeView.qml
         qml/GitCommandDialog.qml
+        qml/CommitHistoryView.qml
     RESOURCES
         assets/icons/repository.svg
         assets/icons/branch.svg
         assets/icons/submodule.svg
     SOURCES
         src/gitclientbackend.h src/gitclientbackend.cpp
+        src/commithistorymodel.h src/commithistorymodel.cpp
         SOURCES
         SOURCES src/backend.h src/backend.cpp
 )

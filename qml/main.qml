@@ -65,6 +65,15 @@ ApplicationWindow {
         anchors.margins: 12
         spacing: 12
 
+        CommitHistoryView {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            model: gitBackend.commitHistoryModel
+            branches: gitBackend.branches
+            currentBranch: gitBackend.currentBranch
+            onBranchSelected: gitBackend.setCurrentBranch(branch)
+        }
+
         StatusList {
             Layout.fillWidth: true
             Layout.fillHeight: true
