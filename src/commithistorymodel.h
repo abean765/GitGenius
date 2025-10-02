@@ -89,6 +89,13 @@ private:
         int groupIndex = 0;
     };
 
+    struct LaneState {
+        int lane = 0;
+        QString commitId;
+        QStringList branchNames;
+        bool mainline = false;
+    };
+
     void updateBranches();
     void collectCommits();
     void computeMainline(const git_oid &headOid, QSet<QString> &outMainline) const;

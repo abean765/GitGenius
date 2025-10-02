@@ -1,6 +1,5 @@
 #include "commithistorymodel.h"
 
-#include <QMap>
 #include <QRegularExpression>
 #include <QtGlobal>
 
@@ -390,58 +389,78 @@ void CommitHistoryModel::collectCommits()
         pendingIds.insert(entry.oid);
     }
 
-    QMap<int, QString> laneAssignments;
-    QHash<QString, int> commitToLane;
-    QHash<int, QStringList> laneBranchNames;
+    QVector<LaneState> activeLanes;
+    activeLanes.reserve(collected.size());
     QHash<QString, QStringList> pendingBranchNames;
     QHash<QString, QVector<Connection>> pendingIncoming;
     m_nextLeft = true;
 
     if (!collected.isEmpty()) {
-        laneAssignments.insert(0, collected.first().oid);
-        commitToLane.insert(collected.first().oid, 0);
-        laneBranchNames.insert(0, QStringList{m_currentBranch});
-        pendingBranchNames.insert(collected.first().oid, QStringList{m_currentBranch});
+        LaneState initialState;
+        initialState.lane = 0;
+        initialState.commitId = collected.first().oid;
+        initialState.branchNames = QStringList{m_currentBranch};
+        initialState.mainline = true;
+        activeLanes.append(initialState);
+        pendingBranchNames.insert(initialState.commitId, initialState.branchNames);
     }
+
+    auto findLaneIndex = [](const QVector<LaneState> &lanes, const QString &commitId) {
+        for (int i = 0; i < lanes.size(); ++i) {
+            if (lanes.at(i).commitId == commitId) {
+                return i;
+            }
+        }
+        return -1;
+    };
+
+    auto sortByLane = [](QVector<LaneState> &lanes) {
+        std::sort(lanes.begin(), lanes.end(), [](const LaneState &a, const LaneState &b) {
+            return a.lane < b.lane;
+        });
+    };
+
+    sortByLane(activeLanes);
 
     for (CommitEntry entry : collected) {
         pendingIds.remove(entry.oid);
 
         entry.incomingConnections = pendingIncoming.take(entry.oid);
 
-        entry.lanesBefore.clear();
-        entry.lanesBefore.reserve(laneAssignments.size());
-        for (auto it = laneAssignments.cbegin(); it != laneAssignments.cend(); ++it) {
-            entry.lanesBefore.append(it.key());
-        }
-        std::sort(entry.lanesBefore.begin(), entry.lanesBefore.end());
-        for (int lane : std::as_const(entry.lanesBefore)) {
-            m_minLane = std::min(m_minLane, lane);
-            m_maxLane = std::max(m_maxLane, lane);
+        const int laneIndex = findLaneIndex(activeLanes, entry.oid);
+
+        if (laneIndex >= 0 && entry.mainline) {
+            activeLanes[laneIndex].lane = 0;
+            activeLanes[laneIndex].mainline = true;
         }
 
-        const int invalidLane = std::numeric_limits<int>::max();
-        int laneValue = commitToLane.value(entry.oid, invalidLane);
-        if (laneValue == invalidLane) {
-            QSet<int> usedLanes;
-            for (auto it = laneAssignments.cbegin(); it != laneAssignments.cend(); ++it) {
-                usedLanes.insert(it.key());
-            }
-            usedLanes.insert(0);
-            laneValue = entry.mainline ? 0 : allocateLane(usedLanes);
-            laneAssignments.insert(laneValue, entry.oid);
-            commitToLane.insert(entry.oid, laneValue);
+        QSet<int> usedLanes;
+        for (const LaneState &state : std::as_const(activeLanes)) {
+            usedLanes.insert(state.lane);
         }
+
+        int laneValue = 0;
+        if (entry.mainline) {
+            laneValue = 0;
+        } else if (laneIndex >= 0) {
+            laneValue = activeLanes.at(laneIndex).lane;
+        } else if (!entry.incomingConnections.isEmpty()) {
+            laneValue = entry.incomingConnections.first().toLane;
+        } else {
+            usedLanes.insert(0);
+            laneValue = allocateLane(usedLanes);
+        }
+
         entry.laneValue = laneValue;
         m_minLane = std::min(m_minLane, laneValue);
         m_maxLane = std::max(m_maxLane, laneValue);
 
         QStringList branchNames;
-        if (pendingBranchNames.contains(entry.oid)) {
-            branchNames = pendingBranchNames.take(entry.oid);
+        if (laneIndex >= 0) {
+            branchNames = activeLanes.at(laneIndex).branchNames;
         }
-        if (branchNames.isEmpty() && laneBranchNames.contains(laneValue)) {
-            branchNames = laneBranchNames.value(laneValue);
+        if (branchNames.isEmpty() && pendingBranchNames.contains(entry.oid)) {
+            branchNames = pendingBranchNames.take(entry.oid);
         }
         if (branchNames.isEmpty() && branchTips.contains(entry.oid)) {
             branchNames = branchTips.value(entry.oid);
@@ -450,18 +469,45 @@ void CommitHistoryModel::collectCommits()
             branchNames = entry.mainline ? QStringList{m_currentBranch} : QStringList{tr("Unknown branch")};
         }
         entry.branchNames = branchNames;
-        laneBranchNames.insert(laneValue, branchNames);
 
-        QMap<int, QString> nextLaneAssignments = laneAssignments;
-        nextLaneAssignments.remove(laneValue);
-
-        QHash<int, QStringList> nextLaneBranchNames = laneBranchNames;
-        nextLaneBranchNames.remove(laneValue);
-
-        QSet<int> occupiedLanes;
-        for (auto it = nextLaneAssignments.cbegin(); it != nextLaneAssignments.cend(); ++it) {
-            occupiedLanes.insert(it.key());
+        if (laneIndex >= 0) {
+            activeLanes[laneIndex].lane = laneValue;
+            activeLanes[laneIndex].branchNames = branchNames;
+            activeLanes[laneIndex].mainline = entry.mainline;
+        } else if (entry.mainline && activeLanes.isEmpty()) {
+            LaneState state;
+            state.lane = laneValue;
+            state.commitId = entry.oid;
+            state.branchNames = branchNames;
+            state.mainline = true;
+            activeLanes.append(state);
         }
+
+        sortByLane(activeLanes);
+
+        entry.lanesBefore.clear();
+        entry.lanesBefore.reserve(activeLanes.size());
+        for (const LaneState &state : std::as_const(activeLanes)) {
+            entry.lanesBefore.append(state.lane);
+            m_minLane = std::min(m_minLane, state.lane);
+            m_maxLane = std::max(m_maxLane, state.lane);
+        }
+
+        QVector<LaneState> nextActive;
+        nextActive.reserve(activeLanes.size() + entry.parentIds.size());
+        for (const LaneState &state : std::as_const(activeLanes)) {
+            if (state.commitId == entry.oid) {
+                continue;
+            }
+            nextActive.append(state);
+        }
+
+        QSet<int> occupied;
+        for (const LaneState &state : std::as_const(nextActive)) {
+            occupied.insert(state.lane);
+        }
+        occupied.insert(0);
+        occupied.insert(laneValue);
 
         entry.connections.clear();
         for (int parentIndex = 0; parentIndex < entry.parentIds.size(); ++parentIndex) {
@@ -471,76 +517,87 @@ void CommitHistoryModel::collectCommits()
             }
 
             const bool parentMainline = mainline.contains(parentId);
-            int parentLane = commitToLane.value(parentId, invalidLane);
-            if (parentLane == invalidLane) {
-                if (parentIndex == 0) {
-                    parentLane = entry.mainline ? 0 : laneValue;
-                } else if (parentMainline) {
-                    parentLane = 0;
-                } else {
-                    parentLane = allocateLane(occupiedLanes);
-                }
+            int existingIdx = findLaneIndex(nextActive, parentId);
+
+            int parentLane = 0;
+            if (parentMainline) {
+                parentLane = 0;
+            } else if (existingIdx >= 0) {
+                parentLane = nextActive.at(existingIdx).lane;
+            } else if (parentIndex == 0) {
+                parentLane = entry.mainline ? 0 : laneValue;
+            } else {
+                parentLane = allocateLane(occupied);
             }
-            occupiedLanes.insert(parentLane);
-            commitToLane.insert(parentId, parentLane);
-            nextLaneAssignments.insert(parentLane, parentId);
+
+            occupied.insert(parentLane);
 
             QStringList parentBranchNames;
             if (parentMainline) {
                 parentBranchNames = QStringList{m_currentBranch};
+            } else if (existingIdx >= 0 && !nextActive.at(existingIdx).branchNames.isEmpty()) {
+                parentBranchNames = nextActive.at(existingIdx).branchNames;
             } else if (pendingBranchNames.contains(parentId)) {
                 parentBranchNames = pendingBranchNames.value(parentId);
             } else if (branchTips.contains(parentId)) {
                 parentBranchNames = branchTips.value(parentId);
             } else if (!branchNames.isEmpty()) {
                 parentBranchNames = branchNames;
-            } else if (laneBranchNames.contains(parentLane)) {
-                parentBranchNames = laneBranchNames.value(parentLane);
-            }
-            if (!parentBranchNames.isEmpty()) {
-                nextLaneBranchNames.insert(parentLane, parentBranchNames);
-                pendingBranchNames.insert(parentId, parentBranchNames);
+            } else {
+                parentBranchNames = QStringList{tr("Unknown branch")};
             }
 
-            m_minLane = std::min(m_minLane, parentLane);
-            m_maxLane = std::max(m_maxLane, parentLane);
+            if (existingIdx >= 0) {
+                nextActive[existingIdx].lane = parentLane;
+                if (!parentBranchNames.isEmpty()) {
+                    nextActive[existingIdx].branchNames = parentBranchNames;
+                }
+                nextActive[existingIdx].mainline = parentMainline;
+            } else {
+                LaneState state;
+                state.lane = parentLane;
+                state.commitId = parentId;
+                state.branchNames = parentBranchNames;
+                state.mainline = parentMainline;
+                nextActive.append(state);
+            }
+
+            pendingBranchNames.insert(parentId, parentBranchNames);
 
             Connection connection;
             connection.fromLane = laneValue;
             connection.toLane = parentLane;
             connection.mainline = (laneValue == 0 && parentLane == 0);
-            connection.parentMainline = (parentLane == 0);
+            connection.parentMainline = parentMainline;
             entry.connections.append(connection);
 
             Connection incoming = connection;
             incoming.parentMainline = (laneValue == 0);
             pendingIncoming[parentId].append(incoming);
+
+            m_minLane = std::min(m_minLane, parentLane);
+            m_maxLane = std::max(m_maxLane, parentLane);
         }
 
-        for (auto it = nextLaneAssignments.begin(); it != nextLaneAssignments.end();) {
-            if (!pendingIds.contains(it.value())) {
-                nextLaneBranchNames.remove(it.key());
-                pendingBranchNames.remove(it.value());
-                pendingIncoming.remove(it.value());
-                it = nextLaneAssignments.erase(it);
-            } else {
-                ++it;
+        for (int i = nextActive.size() - 1; i >= 0; --i) {
+            if (!pendingIds.contains(nextActive.at(i).commitId)) {
+                pendingBranchNames.remove(nextActive.at(i).commitId);
+                pendingIncoming.remove(nextActive.at(i).commitId);
+                nextActive.removeAt(i);
             }
         }
 
+        sortByLane(nextActive);
+
         entry.lanesAfter.clear();
-        entry.lanesAfter.reserve(nextLaneAssignments.size());
-        for (auto it = nextLaneAssignments.cbegin(); it != nextLaneAssignments.cend(); ++it) {
-            entry.lanesAfter.append(it.key());
-        }
-        std::sort(entry.lanesAfter.begin(), entry.lanesAfter.end());
-        for (int lane : std::as_const(entry.lanesAfter)) {
-            m_minLane = std::min(m_minLane, lane);
-            m_maxLane = std::max(m_maxLane, lane);
+        entry.lanesAfter.reserve(nextActive.size());
+        for (const LaneState &state : std::as_const(nextActive)) {
+            entry.lanesAfter.append(state.lane);
+            m_minLane = std::min(m_minLane, state.lane);
+            m_maxLane = std::max(m_maxLane, state.lane);
         }
 
-        laneAssignments = nextLaneAssignments;
-        laneBranchNames = nextLaneBranchNames;
+        activeLanes = nextActive;
 
         m_entries.append(entry);
     }
