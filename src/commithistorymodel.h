@@ -33,6 +33,7 @@ public:
         LanesBeforeRole,
         LanesAfterRole,
         ConnectionsRole,
+        IncomingConnectionsRole,
         IsMainlineRole,
         GroupKeyRole,
         GroupSizeRole,
@@ -80,6 +81,7 @@ private:
         QVector<int> lanesBefore;
         QVector<int> lanesAfter;
         QVector<Connection> connections;
+        QVector<Connection> incomingConnections;
         int laneValue = 0;
         bool mainline = false;
         QString groupKey;

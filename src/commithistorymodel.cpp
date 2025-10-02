@@ -98,6 +98,19 @@ QVariant CommitHistoryModel::data(const QModelIndex &index, int role) const
         }
         return values;
     }
+    case IncomingConnectionsRole: {
+        QVariantList values;
+        values.reserve(entry.incomingConnections.size());
+        for (const Connection &connection : entry.incomingConnections) {
+            QVariantMap map;
+            map.insert(QStringLiteral("from"), connection.fromLane);
+            map.insert(QStringLiteral("to"), connection.toLane);
+            map.insert(QStringLiteral("mainline"), connection.mainline);
+            map.insert(QStringLiteral("parentMainline"), connection.parentMainline);
+            values.append(map);
+        }
+        return values;
+    }
     case IsMainlineRole:
         return entry.mainline;
     case GroupKeyRole:
@@ -128,6 +141,7 @@ QHash<int, QByteArray> CommitHistoryModel::roleNames() const
     roles.insert(LanesBeforeRole, "lanesBefore");
     roles.insert(LanesAfterRole, "lanesAfter");
     roles.insert(ConnectionsRole, "connections");
+    roles.insert(IncomingConnectionsRole, "incomingConnections");
     roles.insert(IsMainlineRole, "mainline");
     roles.insert(GroupKeyRole, "groupKey");
     roles.insert(GroupSizeRole, "groupSize");
@@ -380,6 +394,7 @@ void CommitHistoryModel::collectCommits()
     QHash<QString, int> commitToLane;
     QHash<int, QStringList> laneBranchNames;
     QHash<QString, QStringList> pendingBranchNames;
+    QHash<QString, QVector<Connection>> pendingIncoming;
     m_nextLeft = true;
 
     if (!collected.isEmpty()) {
@@ -391,6 +406,8 @@ void CommitHistoryModel::collectCommits()
 
     for (CommitEntry entry : collected) {
         pendingIds.remove(entry.oid);
+
+        entry.incomingConnections = pendingIncoming.take(entry.oid);
 
         entry.lanesBefore.clear();
         entry.lanesBefore.reserve(laneAssignments.size());
@@ -494,12 +511,17 @@ void CommitHistoryModel::collectCommits()
             connection.mainline = (laneValue == 0 && parentLane == 0);
             connection.parentMainline = (parentLane == 0);
             entry.connections.append(connection);
+
+            Connection incoming = connection;
+            incoming.parentMainline = (laneValue == 0);
+            pendingIncoming[parentId].append(incoming);
         }
 
         for (auto it = nextLaneAssignments.begin(); it != nextLaneAssignments.end();) {
             if (!pendingIds.contains(it.value())) {
                 nextLaneBranchNames.remove(it.key());
                 pendingBranchNames.remove(it.value());
+                pendingIncoming.remove(it.value());
                 it = nextLaneAssignments.erase(it);
             } else {
                 ++it;

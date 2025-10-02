@@ -100,6 +100,7 @@ Frame {
                 property var lanesBeforeData: lanesBefore
                 property var lanesAfterData: lanesAfter
                 property var connectionsData: connections
+                property var incomingConnectionsData: incomingConnections
                 property int laneValue: lane
                 property bool mainlineState: mainline
                 property var branchNamesData: branchNames
@@ -117,6 +118,7 @@ Frame {
                 onLanesBeforeDataChanged: graphCanvas.requestPaint()
                 onLanesAfterDataChanged: graphCanvas.requestPaint()
                 onConnectionsDataChanged: graphCanvas.requestPaint()
+                onIncomingConnectionsDataChanged: graphCanvas.requestPaint()
                 onLaneValueChanged: graphCanvas.requestPaint()
                 onMainlineStateChanged: graphCanvas.requestPaint()
 
@@ -170,8 +172,28 @@ Frame {
                                     const before = lanesBeforeData || []
                                     const after = lanesAfterData || []
                                     const edges = connectionsData || []
+                                    const incoming = incomingConnectionsData || []
 
                                     ctx.lineWidth = 2
+
+                                    for (let i = 0; i < incoming.length; ++i) {
+                                        const edge = incoming[i]
+                                        const fromX = laneToX(edge.from)
+                                        const toX = laneToX(edge.to)
+                                        const isMainlineEdge = edge.from === 0 && edge.to === 0
+                                        ctx.strokeStyle = isMainlineEdge ? root.mainlineColor : root.branchColor
+                                        ctx.lineWidth = isMainlineEdge ? 3 : 2
+                                        ctx.beginPath()
+                                        if (edge.from === edge.to) {
+                                            ctx.moveTo(fromX, top)
+                                            ctx.lineTo(toX, mid)
+                                        } else {
+                                            const controlOffset = Math.min(Math.abs(toX - fromX) * 0.5, root.laneSpacing * 2)
+                                            ctx.moveTo(fromX, top)
+                                            ctx.bezierCurveTo(fromX, mid - controlOffset, toX, mid - controlOffset, toX, mid)
+                                        }
+                                        ctx.stroke()
+                                    }
 
                                     for (let i = 0; i < before.length; ++i) {
                                         const laneId = before[i]
