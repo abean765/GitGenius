@@ -66,9 +66,11 @@ Frame {
         return preferVowel ? (vowelCandidate || consonantCandidate) : (consonantCandidate || vowelCandidate);
     }
 
-    function abbreviationForName(name) {
+    function abbreviationForName(name, length) {
+        length = Math.max(1, length || 5);
+
         if (!name)
-            return "???";
+            return Array(length + 1).join("?").slice(0, length);
 
         var normalized = name.replace(/[^A-Za-z0-9]+/g, " ").trim();
         if (!normalized.length)
@@ -110,7 +112,7 @@ Frame {
         }
 
         var combined = tokens.join("");
-        while (letters.length < 3) {
+        while (letters.length < length) {
             var preferVowel = letters.length === 1;
             var next = _nextDistinctLetter(combined, preferVowel, used);
             if (!next)
@@ -118,10 +120,10 @@ Frame {
             addLetter(next);
         }
 
-        while (letters.length < 3)
+        while (letters.length < length)
             letters.push("?");
 
-        return letters.slice(0, 3).join("");
+        return letters.slice(0, length).join("");
     }
 
     ColumnLayout {
@@ -152,88 +154,87 @@ Frame {
                     anchors.fill: parent
                     anchors.margins: 12
                     spacing: 12
-                    //implicitHeight: childrenRect.height
+                    implicitHeight: childrenRect.height
 
                     Repeater {
                         model: submoduleModel
 
                         delegate: Item {
-                            width: root.cardSize
-                            height: root.cardSize
+                        width: root.cardSize
+                        height: root.cardSize
 
-                            readonly property string repoLabel: modelData.path || modelData.raw || ""
-                            readonly property color baseColor: root.colorFromString(repoLabel)
-                            readonly property string abbrev: root.abbreviationForName(repoLabel)
+                        readonly property string repoName: modelData.name || modelData.path || modelData.raw || ""
+                        readonly property color baseColor: root.colorFromString(repoName)
+                        readonly property string abbrev: root.abbreviationForName(repoName, 5)
 
-                            Rectangle {
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 12
+                            color: baseColor
+                            border.color: Qt.darker(baseColor, 1.2)
+                            border.width: 1
+
+                            Column {
+                                anchors.centerIn: parent
+                                width: parent.width - 24
+                                spacing: 6
+
+                                Label {
+                                    text: abbrev
+                                    font.bold: true
+                                    font.pixelSize: 28
+                                    color: root.textColorForBackground(baseColor, false)
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                    width: parent.width
+                                }
+
+                                Label {
+                                    text: repoName
+                                    font.pixelSize: 12
+                                    wrapMode: Label.WordWrap
+                                    horizontalAlignment: Text.AlignHCenter
+                                    color: root.textColorForBackground(baseColor, true)
+                                }
+
+                                Label {
+                                    text: modelData.status || qsTr("Unknown")
+                                    font.pixelSize: 11
+                                    horizontalAlignment: Text.AlignHCenter
+                                    color: root.textColorForBackground(baseColor, true)
+                                }
+                            }
+
+                            MouseArea {
                                 anchors.fill: parent
-                                radius: 12
-                                color: baseColor
-                                border.color: Qt.darker(baseColor, 1.2)
-                                border.width: 1
+                                hoverEnabled: true
+                                acceptedButtons: Qt.NoButton
+                                id: hoverArea
+                            }
 
-                                Column {
-                                    anchors.centerIn: parent
-                                    width: parent.width - 24
-                                    spacing: 6
-
-                                    Label {
-                                        text: abbrev
-                                        font.bold: true
-                                        font.pixelSize: 32
-                                        color: root.textColorForBackground(baseColor, false)
-                                        horizontalAlignment: Text.AlignHCenter
-                                        verticalAlignment: Text.AlignVCenter
-                                        width: parent.width
-                                    }
-
-                                    Label {
-                                        text: repoLabel
-                                        font.pixelSize: 12
-                                        wrapMode: Label.WordWrap
-                                        horizontalAlignment: Text.AlignHCenter
-                                        color: root.textColorForBackground(baseColor, true)
-                                    }
-
-                                    Label {
-                                        text: modelData.details ? modelData.details : ""
-                                        visible: text.length > 0
-                                        font.pixelSize: 11
-                                        wrapMode: Label.WordWrap
-                                        horizontalAlignment: Text.AlignHCenter
-                                        color: root.textColorForBackground(baseColor, true)
-                                    }
-
-                                    Label {
-                                        text: modelData.status || qsTr("Unknown")
-                                        font.pixelSize: 11
-                                        horizontalAlignment: Text.AlignHCenter
-                                        color: root.textColorForBackground(baseColor, true)
-                                    }
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    acceptedButtons: Qt.NoButton
-                                    id: hoverArea
-                                }
-
-                                ToolTip.visible: hoverArea.containsMouse
-                                ToolTip.text: modelData.commit ? qsTr("Commit %1").arg(modelData.commit) : (modelData.raw || repoLabel)
+                            ToolTip.visible: hoverArea.containsMouse
+                            ToolTip.text: {
+                                var parts = [];
+                                if (repoName)
+                                    parts.push(repoName);
+                                if (modelData.details)
+                                    parts.push(modelData.details);
+                                if (modelData.commit)
+                                    parts.push(qsTr("Commit %1").arg(modelData.commit));
+                                return parts.join("\n");
                             }
                         }
                     }
                 }
             }
+        }
 
-            Label {
-                visible: submoduleModel.length === 0
-                text: qsTr("No submodules detected")
-                horizontalAlignment: Text.AlignHCenter
-                Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
-                opacity: 0.6
-            }
+        Label {
+            visible: submoduleModel.length === 0
+            text: qsTr("No submodules detected")
+            horizontalAlignment: Text.AlignHCenter
+            Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+            opacity: 0.6
         }
     }
 }
