@@ -72,10 +72,10 @@ ApplicationWindow {
             onStageRequested: function(path) { gitBackend.stageFiles([path]) }
         }
 
-        RepositoryTreeView {
+        SubmoduleList {
             Layout.fillWidth: true
             Layout.preferredHeight: 280
-            treeModel: gitBackend.repositoryTree
+            submoduleModel: gitBackend.submodules
         }
 
         RowLayout {
