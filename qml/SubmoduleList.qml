@@ -152,87 +152,88 @@ Frame {
                     anchors.fill: parent
                     anchors.margins: 12
                     spacing: 12
-                    implicitHeight: childrenRect.height
+                    //implicitHeight: childrenRect.height
 
                     Repeater {
                         model: submoduleModel
 
                         delegate: Item {
-                        width: root.cardSize
-                        height: root.cardSize
+                            width: root.cardSize
+                            height: root.cardSize
 
-                        readonly property string repoLabel: modelData.path || modelData.raw || ""
-                        readonly property color baseColor: root.colorFromString(repoLabel)
-                        readonly property string abbrev: root.abbreviationForName(repoLabel)
+                            readonly property string repoLabel: modelData.path || modelData.raw || ""
+                            readonly property color baseColor: root.colorFromString(repoLabel)
+                            readonly property string abbrev: root.abbreviationForName(repoLabel)
 
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: 12
-                            color: baseColor
-                            border.color: Qt.darker(baseColor, 1.2)
-                            border.width: 1
-
-                            Column {
-                                anchors.centerIn: parent
-                                width: parent.width - 24
-                                spacing: 6
-
-                                Label {
-                                    text: abbrev
-                                    font.bold: true
-                                    font.pixelSize: 32
-                                    color: root.textColorForBackground(baseColor, false)
-                                    horizontalAlignment: Text.AlignHCenter
-                                    verticalAlignment: Text.AlignVCenter
-                                    width: parent.width
-                                }
-
-                                Label {
-                                    text: repoLabel
-                                    font.pixelSize: 12
-                                    wrapMode: Label.WordWrap
-                                    horizontalAlignment: Text.AlignHCenter
-                                    color: root.textColorForBackground(baseColor, true)
-                                }
-
-                                Label {
-                                    text: modelData.details ? modelData.details : ""
-                                    visible: text.length > 0
-                                    font.pixelSize: 11
-                                    wrapMode: Label.WordWrap
-                                    horizontalAlignment: Text.AlignHCenter
-                                    color: root.textColorForBackground(baseColor, true)
-                                }
-
-                                Label {
-                                    text: modelData.status || qsTr("Unknown")
-                                    font.pixelSize: 11
-                                    horizontalAlignment: Text.AlignHCenter
-                                    color: root.textColorForBackground(baseColor, true)
-                                }
-                            }
-
-                            MouseArea {
+                            Rectangle {
                                 anchors.fill: parent
-                                hoverEnabled: true
-                                acceptedButtons: Qt.NoButton
-                                id: hoverArea
-                            }
+                                radius: 12
+                                color: baseColor
+                                border.color: Qt.darker(baseColor, 1.2)
+                                border.width: 1
 
-                            ToolTip.visible: hoverArea.containsMouse
-                            ToolTip.text: modelData.commit ? qsTr("Commit %1").arg(modelData.commit) : (modelData.raw || repoLabel)
+                                Column {
+                                    anchors.centerIn: parent
+                                    width: parent.width - 24
+                                    spacing: 6
+
+                                    Label {
+                                        text: abbrev
+                                        font.bold: true
+                                        font.pixelSize: 32
+                                        color: root.textColorForBackground(baseColor, false)
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                        width: parent.width
+                                    }
+
+                                    Label {
+                                        text: repoLabel
+                                        font.pixelSize: 12
+                                        wrapMode: Label.WordWrap
+                                        horizontalAlignment: Text.AlignHCenter
+                                        color: root.textColorForBackground(baseColor, true)
+                                    }
+
+                                    Label {
+                                        text: modelData.details ? modelData.details : ""
+                                        visible: text.length > 0
+                                        font.pixelSize: 11
+                                        wrapMode: Label.WordWrap
+                                        horizontalAlignment: Text.AlignHCenter
+                                        color: root.textColorForBackground(baseColor, true)
+                                    }
+
+                                    Label {
+                                        text: modelData.status || qsTr("Unknown")
+                                        font.pixelSize: 11
+                                        horizontalAlignment: Text.AlignHCenter
+                                        color: root.textColorForBackground(baseColor, true)
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    acceptedButtons: Qt.NoButton
+                                    id: hoverArea
+                                }
+
+                                ToolTip.visible: hoverArea.containsMouse
+                                ToolTip.text: modelData.commit ? qsTr("Commit %1").arg(modelData.commit) : (modelData.raw || repoLabel)
+                            }
                         }
                     }
                 }
             }
-        }
 
-        Label {
-            visible: submoduleModel.length === 0
-            text: qsTr("No submodules detected")
-            horizontalAlignment: Text.AlignHCenter
-            Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
-            opacity: 0.6
+            Label {
+                visible: submoduleModel.length === 0
+                text: qsTr("No submodules detected")
+                horizontalAlignment: Text.AlignHCenter
+                Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+                opacity: 0.6
+            }
         }
     }
 }
