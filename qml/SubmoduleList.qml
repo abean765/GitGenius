@@ -30,6 +30,24 @@ Frame {
                        1.0);
     }
 
+    function leafName(value) {
+        if (!value)
+            return "";
+
+        var normalized = value.replace(/\\/g, "/");
+        normalized = normalized.replace(/\/+$/, "");
+        if (!normalized.length)
+            return "";
+
+        var segments = normalized.split("/");
+        for (var i = segments.length - 1; i >= 0; --i) {
+            if (segments[i].length)
+                return segments[i];
+        }
+
+        return value;
+    }
+
     function textColorForBackground(color, subtle) {
         var luminance = 0.299 * color.r + 0.587 * color.g + 0.114 * color.b;
         if (subtle)
@@ -164,8 +182,9 @@ Frame {
                         height: root.cardSize
 
                         readonly property string repoName: modelData.name || modelData.path || modelData.raw || ""
-                        readonly property color baseColor: root.colorFromString(repoName)
-                        readonly property string abbrev: root.abbreviationForName(repoName, 5)
+                        readonly property string displayName: root.leafName(repoName)
+                        readonly property color baseColor: root.colorFromString(displayName || repoName)
+                        readonly property string abbrev: root.abbreviationForName(displayName || repoName, 5)
 
                         Rectangle {
                             anchors.fill: parent
@@ -190,7 +209,7 @@ Frame {
                                 }
 
                                 Label {
-                                    text: repoName
+                                    text: displayName
                                     font.pixelSize: 12
                                     wrapMode: Label.WordWrap
                                     horizontalAlignment: Text.AlignHCenter
@@ -215,7 +234,9 @@ Frame {
                             ToolTip.visible: hoverArea.containsMouse
                             ToolTip.text: {
                                 var parts = [];
-                                if (repoName)
+                                if (displayName)
+                                    parts.push(displayName);
+                                if (repoName && repoName !== displayName)
                                     parts.push(repoName);
                                 if (modelData.details)
                                     parts.push(modelData.details);
