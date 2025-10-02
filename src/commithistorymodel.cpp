@@ -1,9 +1,11 @@
 #include "commithistorymodel.h"
 
+#include <QMap>
 #include <QRegularExpression>
 #include <QtGlobal>
 
 #include <algorithm>
+#include <limits>
 #include <utility>
 
 #include <git2.h>
@@ -374,121 +376,113 @@ void CommitHistoryModel::collectCommits()
         pendingIds.insert(entry.oid);
     }
 
-    QVector<int> activeLanes;
-    activeLanes.append(0);
-
-    QHash<int, QStringList> activeLaneBranches;
-    activeLaneBranches.insert(0, QStringList{m_currentBranch});
-
-    QHash<QString, int> futureLanes;
-    QHash<QString, QStringList> futureLaneBranches;
-    QHash<QString, int> laneByCommit;
+    QMap<int, QString> laneAssignments;
+    QHash<QString, int> commitToLane;
+    QHash<int, QStringList> laneBranchNames;
+    QHash<QString, QStringList> pendingBranchNames;
     m_nextLeft = true;
+
+    if (!collected.isEmpty()) {
+        laneAssignments.insert(0, collected.first().oid);
+        commitToLane.insert(collected.first().oid, 0);
+        laneBranchNames.insert(0, QStringList{m_currentBranch});
+        pendingBranchNames.insert(collected.first().oid, QStringList{m_currentBranch});
+    }
 
     for (CommitEntry entry : collected) {
         pendingIds.remove(entry.oid);
 
         entry.lanesBefore.clear();
-        entry.lanesAfter.clear();
-        entry.connections.clear();
-
-        QVector<int> lanesBefore = activeLanes;
-        if (!lanesBefore.contains(0)) {
-            lanesBefore.append(0);
+        entry.lanesBefore.reserve(laneAssignments.size());
+        for (auto it = laneAssignments.cbegin(); it != laneAssignments.cend(); ++it) {
+            entry.lanesBefore.append(it.key());
         }
-        std::sort(lanesBefore.begin(), lanesBefore.end());
-
-        QSet<int> used;
-        for (int lane : lanesBefore) {
-            used.insert(lane);
-        }
-        for (auto it = futureLanes.cbegin(); it != futureLanes.cend(); ++it) {
-            used.insert(it.value());
-        }
-
-        int laneValue = 0;
-        if (laneByCommit.contains(entry.oid)) {
-            laneValue = laneByCommit.value(entry.oid);
-        } else if (entry.mainline) {
-            laneValue = 0;
-        } else if (futureLanes.contains(entry.oid)) {
-            laneValue = futureLanes.value(entry.oid);
-        } else {
-            laneValue = allocateLane(used);
-        }
-        futureLanes.remove(entry.oid);
-        laneByCommit.insert(entry.oid, laneValue);
-        used.insert(laneValue);
-
-        if (!lanesBefore.contains(laneValue)) {
-            lanesBefore.append(laneValue);
-            std::sort(lanesBefore.begin(), lanesBefore.end());
-        }
-
-        entry.laneValue = laneValue;
-        entry.lanesBefore = lanesBefore;
-        for (int lane : entry.lanesBefore) {
+        std::sort(entry.lanesBefore.begin(), entry.lanesBefore.end());
+        for (int lane : std::as_const(entry.lanesBefore)) {
             m_minLane = std::min(m_minLane, lane);
             m_maxLane = std::max(m_maxLane, lane);
         }
-        m_minLane = std::min(m_minLane, entry.laneValue);
-        m_maxLane = std::max(m_maxLane, entry.laneValue);
+
+        const int invalidLane = std::numeric_limits<int>::max();
+        int laneValue = commitToLane.value(entry.oid, invalidLane);
+        if (laneValue == invalidLane) {
+            QSet<int> usedLanes;
+            for (auto it = laneAssignments.cbegin(); it != laneAssignments.cend(); ++it) {
+                usedLanes.insert(it.key());
+            }
+            usedLanes.insert(0);
+            laneValue = entry.mainline ? 0 : allocateLane(usedLanes);
+            laneAssignments.insert(laneValue, entry.oid);
+            commitToLane.insert(entry.oid, laneValue);
+        }
+        entry.laneValue = laneValue;
+        m_minLane = std::min(m_minLane, laneValue);
+        m_maxLane = std::max(m_maxLane, laneValue);
 
         QStringList branchNames;
-        if (entry.mainline) {
-            branchNames = QStringList{m_currentBranch};
-        } else if (futureLaneBranches.contains(entry.oid)) {
-            branchNames = futureLaneBranches.take(entry.oid);
-        } else if (activeLaneBranches.contains(laneValue)) {
-            branchNames = activeLaneBranches.value(laneValue);
-        } else if (branchTips.contains(entry.oid)) {
+        if (pendingBranchNames.contains(entry.oid)) {
+            branchNames = pendingBranchNames.take(entry.oid);
+        }
+        if (branchNames.isEmpty() && laneBranchNames.contains(laneValue)) {
+            branchNames = laneBranchNames.value(laneValue);
+        }
+        if (branchNames.isEmpty() && branchTips.contains(entry.oid)) {
             branchNames = branchTips.value(entry.oid);
         }
-        if (branchNames.isEmpty() && entry.mainline) {
-            branchNames = QStringList{m_currentBranch};
-        }
-        if (branchNames.isEmpty() && !entry.mainline) {
-            branchNames.append(tr("Unknown branch"));
+        if (branchNames.isEmpty()) {
+            branchNames = entry.mainline ? QStringList{m_currentBranch} : QStringList{tr("Unknown branch")};
         }
         entry.branchNames = branchNames;
-        if (!branchNames.isEmpty()) {
-            activeLaneBranches.insert(laneValue, branchNames);
+        laneBranchNames.insert(laneValue, branchNames);
+
+        QMap<int, QString> nextLaneAssignments = laneAssignments;
+        nextLaneAssignments.remove(laneValue);
+
+        QHash<int, QStringList> nextLaneBranchNames = laneBranchNames;
+        nextLaneBranchNames.remove(laneValue);
+
+        QSet<int> occupiedLanes;
+        for (auto it = nextLaneAssignments.cbegin(); it != nextLaneAssignments.cend(); ++it) {
+            occupiedLanes.insert(it.key());
         }
 
-        for (const QString &parentId : std::as_const(entry.parentIds)) {
-            if (!pendingIds.contains(parentId) && !futureLanes.contains(parentId)) {
+        entry.connections.clear();
+        for (int parentIndex = 0; parentIndex < entry.parentIds.size(); ++parentIndex) {
+            const QString &parentId = entry.parentIds.at(parentIndex);
+            if (!pendingIds.contains(parentId)) {
                 continue;
             }
 
             const bool parentMainline = mainline.contains(parentId);
-            int parentLane = 0;
-            if (laneByCommit.contains(parentId)) {
-                parentLane = laneByCommit.value(parentId);
-            } else if (parentMainline) {
-                parentLane = 0;
-            } else {
-                parentLane = allocateLane(used);
+            int parentLane = commitToLane.value(parentId, invalidLane);
+            if (parentLane == invalidLane) {
+                if (parentIndex == 0) {
+                    parentLane = entry.mainline ? 0 : laneValue;
+                } else if (parentMainline) {
+                    parentLane = 0;
+                } else {
+                    parentLane = allocateLane(occupiedLanes);
+                }
             }
-            laneByCommit.insert(parentId, parentLane);
-            used.insert(parentLane);
-            if (pendingIds.contains(parentId)) {
-                futureLanes.insert(parentId, parentLane);
-            }
+            occupiedLanes.insert(parentLane);
+            commitToLane.insert(parentId, parentLane);
+            nextLaneAssignments.insert(parentLane, parentId);
 
             QStringList parentBranchNames;
             if (parentMainline) {
                 parentBranchNames = QStringList{m_currentBranch};
-            } else if (futureLaneBranches.contains(parentId)) {
-                parentBranchNames = futureLaneBranches.value(parentId);
-            } else if (activeLaneBranches.contains(parentLane)) {
-                parentBranchNames = activeLaneBranches.value(parentLane);
-            } else if (!branchNames.isEmpty()) {
-                parentBranchNames = branchNames;
+            } else if (pendingBranchNames.contains(parentId)) {
+                parentBranchNames = pendingBranchNames.value(parentId);
             } else if (branchTips.contains(parentId)) {
                 parentBranchNames = branchTips.value(parentId);
+            } else if (!branchNames.isEmpty()) {
+                parentBranchNames = branchNames;
+            } else if (laneBranchNames.contains(parentLane)) {
+                parentBranchNames = laneBranchNames.value(parentLane);
             }
             if (!parentBranchNames.isEmpty()) {
-                futureLaneBranches.insert(parentId, parentBranchNames);
+                nextLaneBranchNames.insert(parentLane, parentBranchNames);
+                pendingBranchNames.insert(parentId, parentBranchNames);
             }
 
             m_minLane = std::min(m_minLane, parentLane);
@@ -497,54 +491,34 @@ void CommitHistoryModel::collectCommits()
             Connection connection;
             connection.fromLane = laneValue;
             connection.toLane = parentLane;
-            connection.mainline = entry.mainline;
-            connection.parentMainline = parentMainline;
+            connection.mainline = (laneValue == 0 && parentLane == 0);
+            connection.parentMainline = (parentLane == 0);
             entry.connections.append(connection);
         }
 
-        for (auto it = futureLanes.begin(); it != futureLanes.end();) {
-            if (!pendingIds.contains(it.key())) {
-                futureLaneBranches.remove(it.key());
-                it = futureLanes.erase(it);
+        for (auto it = nextLaneAssignments.begin(); it != nextLaneAssignments.end();) {
+            if (!pendingIds.contains(it.value())) {
+                nextLaneBranchNames.remove(it.key());
+                pendingBranchNames.remove(it.value());
+                it = nextLaneAssignments.erase(it);
             } else {
                 ++it;
             }
         }
 
-        QSet<int> futureUsed;
-        for (auto it = futureLanes.cbegin(); it != futureLanes.cend(); ++it) {
-            futureUsed.insert(it.value());
+        entry.lanesAfter.clear();
+        entry.lanesAfter.reserve(nextLaneAssignments.size());
+        for (auto it = nextLaneAssignments.cbegin(); it != nextLaneAssignments.cend(); ++it) {
+            entry.lanesAfter.append(it.key());
         }
-        if (!futureUsed.contains(0)) {
-            futureUsed.insert(0);
-        }
-        entry.lanesAfter = futureUsed.values().toVector();
         std::sort(entry.lanesAfter.begin(), entry.lanesAfter.end());
-
-        QHash<int, QStringList> nextActiveLaneBranches;
-        for (auto it = futureLanes.cbegin(); it != futureLanes.cend(); ++it) {
-            const QString commitId = it.key();
-            const int lane = it.value();
-            QStringList names = futureLaneBranches.value(commitId);
-            if (names.isEmpty() && activeLaneBranches.contains(lane)) {
-                names = activeLaneBranches.value(lane);
-            }
-            if (lane == 0) {
-                names = QStringList{m_currentBranch};
-            }
-            if (!names.isEmpty()) {
-                nextActiveLaneBranches.insert(lane, names);
-            }
-        }
-        if (!nextActiveLaneBranches.contains(0)) {
-            nextActiveLaneBranches.insert(0, QStringList{m_currentBranch});
-        }
-        activeLaneBranches = nextActiveLaneBranches;
-        activeLanes = entry.lanesAfter;
-        for (int lane : entry.lanesAfter) {
+        for (int lane : std::as_const(entry.lanesAfter)) {
             m_minLane = std::min(m_minLane, lane);
             m_maxLane = std::max(m_maxLane, lane);
         }
+
+        laneAssignments = nextLaneAssignments;
+        laneBranchNames = nextLaneBranchNames;
 
         m_entries.append(entry);
     }
