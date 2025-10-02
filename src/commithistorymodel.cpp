@@ -4,6 +4,7 @@
 #include <QtGlobal>
 
 #include <algorithm>
+#include <utility>
 
 #include <git2.h>
 
@@ -304,9 +305,8 @@ void CommitHistoryModel::collectCommits()
         return;
     }
 
-    QVector<int> laneOrder;
-    QHash<QString, int> futureLanes;
-    m_nextLeft = true;
+    QVector<CommitEntry> collected;
+    collected.reserve(maxCommits);
 
     git_oid oid;
     int processed = 0;
@@ -351,6 +351,35 @@ void CommitHistoryModel::collectCommits()
         entry.mainline = mainline.contains(entry.oid);
         entry.groupKey = entry.summary.trimmed().toLower() + QLatin1Char('|') + entry.author.toLower();
 
+        collected.append(entry);
+        ++processed;
+        git_commit_free(commit);
+    }
+
+    git_revwalk_free(walker);
+
+    filterRelevantCommits(collected);
+
+    m_entries.clear();
+    m_entries.reserve(collected.size());
+
+    QSet<QString> pendingIds;
+    pendingIds.reserve(collected.size());
+    for (const CommitEntry &entry : std::as_const(collected)) {
+        pendingIds.insert(entry.oid);
+    }
+
+    QVector<int> laneOrder;
+    QHash<QString, int> futureLanes;
+    m_nextLeft = true;
+
+    for (CommitEntry entry : collected) {
+        pendingIds.remove(entry.oid);
+
+        entry.lanesBefore.clear();
+        entry.lanesAfter.clear();
+        entry.connections.clear();
+
         QSet<int> used;
         for (int lane : laneOrder) {
             used.insert(lane);
@@ -372,21 +401,22 @@ void CommitHistoryModel::collectCommits()
             std::sort(laneOrder.begin(), laneOrder.end());
         }
 
+        entry.laneValue = laneValue;
         entry.lanesBefore = laneOrder;
         for (int lane : entry.lanesBefore) {
             m_minLane = std::min(m_minLane, lane);
             m_maxLane = std::max(m_maxLane, lane);
         }
-        entry.laneValue = laneValue;
         m_minLane = std::min(m_minLane, entry.laneValue);
         m_maxLane = std::max(m_maxLane, entry.laneValue);
 
-        QVector<int> parentLanes;
-        parentLanes.reserve(entry.parentIds.size());
-        for (int i = 0; i < entry.parentIds.size(); ++i) {
-            const QString &parentId = entry.parentIds.at(i);
-            int parentLane = 0;
+        for (const QString &parentId : std::as_const(entry.parentIds)) {
+            if (!pendingIds.contains(parentId) && !futureLanes.contains(parentId)) {
+                continue;
+            }
+
             const bool parentMainline = mainline.contains(parentId);
+            int parentLane = 0;
             if (futureLanes.contains(parentId)) {
                 parentLane = futureLanes.value(parentId);
             } else if (parentMainline) {
@@ -395,8 +425,9 @@ void CommitHistoryModel::collectCommits()
                 parentLane = allocateLane(used);
             }
             used.insert(parentLane);
-            futureLanes.insert(parentId, parentLane);
-            parentLanes.append(parentLane);
+            if (pendingIds.contains(parentId)) {
+                futureLanes.insert(parentId, parentLane);
+            }
 
             m_minLane = std::min(m_minLane, parentLane);
             m_maxLane = std::max(m_maxLane, parentLane);
@@ -407,6 +438,14 @@ void CommitHistoryModel::collectCommits()
             connection.mainline = entry.mainline;
             connection.parentMainline = parentMainline;
             entry.connections.append(connection);
+        }
+
+        for (auto it = futureLanes.begin(); it != futureLanes.end();) {
+            if (!pendingIds.contains(it.key())) {
+                it = futureLanes.erase(it);
+            } else {
+                ++it;
+            }
         }
 
         QSet<int> futureUsed;
@@ -423,11 +462,7 @@ void CommitHistoryModel::collectCommits()
         }
 
         m_entries.append(entry);
-        ++processed;
-        git_commit_free(commit);
     }
-
-    git_revwalk_free(walker);
 
     // compute grouping information
     QString lastKey;
@@ -556,5 +591,52 @@ QString CommitHistoryModel::buildLeftSummary(const QString &summary)
         return summary;
     }
     return rest + QStringLiteral(" (#%1)").arg(number);
+}
+
+void CommitHistoryModel::filterRelevantCommits(QVector<CommitEntry> &entries) const
+{
+    if (entries.isEmpty()) {
+        return;
+    }
+
+    QHash<QString, int> indexByOid;
+    indexByOid.reserve(entries.size());
+    for (int i = 0; i < entries.size(); ++i) {
+        indexByOid.insert(entries.at(i).oid, i);
+    }
+
+    QSet<QString> relevant;
+    QVector<QString> stack;
+    stack.append(entries.first().oid);
+    relevant.insert(entries.first().oid);
+
+    while (!stack.isEmpty()) {
+        const QString current = stack.takeLast();
+        const int index = indexByOid.value(current, -1);
+        if (index < 0) {
+            continue;
+        }
+        const CommitEntry &entry = entries.at(index);
+        for (const QString &parentId : entry.parentIds) {
+            const int parentIndex = indexByOid.value(parentId, -1);
+            if (parentIndex < 0) {
+                continue;
+            }
+            if (!relevant.contains(parentId)) {
+                relevant.insert(parentId);
+                stack.append(parentId);
+            }
+        }
+    }
+
+    QVector<CommitEntry> filtered;
+    filtered.reserve(relevant.size());
+    for (const CommitEntry &entry : std::as_const(entries)) {
+        if (relevant.contains(entry.oid)) {
+            filtered.append(entry);
+        }
+    }
+
+    entries = filtered;
 }
 

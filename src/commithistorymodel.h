@@ -92,6 +92,7 @@ private:
     int allocateLane(QSet<int> &usedLanes);
     static QString formatRelativeTime(qint64 timestamp);
     static QString buildLeftSummary(const QString &summary);
+    void filterRelevantCommits(QVector<CommitEntry> &entries) const;
 
     git_repository *m_repository = nullptr;
     QStringList m_branches;
