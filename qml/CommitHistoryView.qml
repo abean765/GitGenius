@@ -104,7 +104,7 @@ Frame {
                 property bool mainlineState: mainline
 
                 visible: !collapsedMember
-                implicitHeight: collapsedMember ? 0 : Math.max(contentItem.implicitHeight + 8, 76)
+                implicitHeight: collapsedMember ? 0 : Math.max(graphContainer.implicitHeight, 48)
 
                 onLanesBeforeDataChanged: graphCanvas.requestPaint()
                 onLanesAfterDataChanged: graphCanvas.requestPaint()
@@ -116,19 +116,19 @@ Frame {
                     id: contentItem
                     anchors.fill: parent
                     color: "transparent"
-                    implicitHeight: graphContainer.implicitHeight + 12
+                    implicitHeight: graphContainer.implicitHeight
 
-                    Item {
-                        anchors.fill: parent
-                        anchors.topMargin: 0
-                        anchors.bottomMargin: 0
-                        anchors.leftMargin: 8
-                        anchors.rightMargin: 8
+                        Item {
+                            anchors.fill: parent
+                            anchors.topMargin: 0
+                            anchors.bottomMargin: 0
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
 
                         Item {
                             id: graphContainer
                             width: root.graphColumnWidth
-                            implicitHeight: Math.max((laneValue >= 0 ? textColumn.implicitHeight : leftColumn.implicitHeight) + 16, 84)
+                            implicitHeight: Math.max(Math.max(textColumn.implicitHeight, leftColumn.implicitHeight), 48)
                             anchors.verticalCenter: parent.verticalCenter
                             anchors.horizontalCenter: parent.horizontalCenter
 
@@ -154,32 +154,37 @@ Frame {
 
                                     ctx.lineWidth = 2
 
-                                    ctx.strokeStyle = Qt.rgba(0.73, 0.75, 0.78, 1)
-                                    ctx.beginPath()
                                     for (let i = 0; i < before.length; ++i) {
                                         const laneId = before[i]
                                         const x = laneToX(laneId)
+                                        const isMainlineLane = laneId === 0
+                                        ctx.strokeStyle = isMainlineLane ? root.mainlineColor : root.branchColor
+                                        ctx.lineWidth = isMainlineLane ? 3 : 2
+                                        ctx.beginPath()
                                         ctx.moveTo(x, top)
                                         ctx.lineTo(x, mid)
+                                        ctx.stroke()
                                     }
-                                    ctx.stroke()
 
-                                    ctx.beginPath()
                                     for (let i = 0; i < after.length; ++i) {
                                         const laneId = after[i]
                                         const x = laneToX(laneId)
+                                        const isMainlineLane = laneId === 0
+                                        ctx.strokeStyle = isMainlineLane ? root.mainlineColor : root.branchColor
+                                        ctx.lineWidth = isMainlineLane ? 3 : 2
+                                        ctx.beginPath()
                                         ctx.moveTo(x, mid)
                                         ctx.lineTo(x, bottom)
+                                        ctx.stroke()
                                     }
-                                    ctx.stroke()
 
                                     for (let i = 0; i < edges.length; ++i) {
                                         const edge = edges[i]
                                         const fromX = laneToX(edge.from)
                                         const toX = laneToX(edge.to)
-                                        const color = edge.parentMainline ? root.mainlineColor : root.branchColor
-                                        ctx.strokeStyle = color
-                                        ctx.lineWidth = edge.parentMainline ? 3 : 2
+                                        const isMainlineEdge = edge.from === 0 && edge.to === 0
+                                        ctx.strokeStyle = isMainlineEdge ? root.mainlineColor : root.branchColor
+                                        ctx.lineWidth = isMainlineEdge ? 3 : 2
                                         ctx.beginPath()
                                         if (edge.from === edge.to) {
                                             ctx.moveTo(fromX, mid)
