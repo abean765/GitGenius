@@ -63,6 +63,8 @@ QVariant CommitHistoryModel::data(const QModelIndex &index, int role) const
         return entry.relativeTime;
     case ParentIdsRole:
         return entry.parentIds;
+    case BranchNamesRole:
+        return entry.branchNames;
     case LaneRole:
         return entry.laneValue;
     case LanesBeforeRole: {
@@ -119,6 +121,7 @@ QHash<int, QByteArray> CommitHistoryModel::roleNames() const
     roles.insert(TimestampRole, "timestamp");
     roles.insert(RelativeTimeRole, "relativeTime");
     roles.insert(ParentIdsRole, "parentIds");
+    roles.insert(BranchNamesRole, "branchNames");
     roles.insert(LaneRole, "lane");
     roles.insert(LanesBeforeRole, "lanesBefore");
     roles.insert(LanesAfterRole, "lanesAfter");
@@ -293,6 +296,8 @@ void CommitHistoryModel::collectCommits()
     QSet<QString> mainline;
     computeMainline(headOid, mainline);
 
+    const QHash<QString, QStringList> branchTips = collectBranchTips();
+
     git_revwalk *walker = nullptr;
     if (git_revwalk_new(&walker, m_repository) != 0) {
         finish();
@@ -305,12 +310,12 @@ void CommitHistoryModel::collectCommits()
         return;
     }
 
+    const int maxCommits = 2000;
     QVector<CommitEntry> collected;
     collected.reserve(maxCommits);
 
     git_oid oid;
     int processed = 0;
-    const int maxCommits = 2000;
     while (processed < maxCommits && git_revwalk_next(&oid, walker) == 0) {
         git_commit *commit = nullptr;
         if (git_commit_lookup(&commit, m_repository, &oid) != 0) {
@@ -369,17 +374,16 @@ void CommitHistoryModel::collectCommits()
         pendingIds.insert(entry.oid);
     }
 
-    QVector<int> laneOrder;
+    QVector<int> activeLanes;
+    activeLanes.append(0);
+
+    QHash<int, QStringList> activeLaneBranches;
+    activeLaneBranches.insert(0, QStringList{m_currentBranch});
+
     QHash<QString, int> futureLanes;
+    QHash<QString, QStringList> futureLaneBranches;
     QHash<QString, int> laneByCommit;
     m_nextLeft = true;
-
-    auto ensureMainlineLane = [](QVector<int> &lanes) {
-        if (!lanes.contains(0)) {
-            lanes.append(0);
-            std::sort(lanes.begin(), lanes.end());
-        }
-    };
 
     for (CommitEntry entry : collected) {
         pendingIds.remove(entry.oid);
@@ -388,10 +392,14 @@ void CommitHistoryModel::collectCommits()
         entry.lanesAfter.clear();
         entry.connections.clear();
 
-        ensureMainlineLane(laneOrder);
+        QVector<int> lanesBefore = activeLanes;
+        if (!lanesBefore.contains(0)) {
+            lanesBefore.append(0);
+        }
+        std::sort(lanesBefore.begin(), lanesBefore.end());
 
         QSet<int> used;
-        for (int lane : laneOrder) {
+        for (int lane : lanesBefore) {
             used.insert(lane);
         }
         for (auto it = futureLanes.cbegin(); it != futureLanes.cend(); ++it) {
@@ -411,19 +419,41 @@ void CommitHistoryModel::collectCommits()
         futureLanes.remove(entry.oid);
         laneByCommit.insert(entry.oid, laneValue);
         used.insert(laneValue);
-        if (!laneOrder.contains(laneValue)) {
-            laneOrder.append(laneValue);
-            std::sort(laneOrder.begin(), laneOrder.end());
+
+        if (!lanesBefore.contains(laneValue)) {
+            lanesBefore.append(laneValue);
+            std::sort(lanesBefore.begin(), lanesBefore.end());
         }
 
         entry.laneValue = laneValue;
-        entry.lanesBefore = laneOrder;
+        entry.lanesBefore = lanesBefore;
         for (int lane : entry.lanesBefore) {
             m_minLane = std::min(m_minLane, lane);
             m_maxLane = std::max(m_maxLane, lane);
         }
         m_minLane = std::min(m_minLane, entry.laneValue);
         m_maxLane = std::max(m_maxLane, entry.laneValue);
+
+        QStringList branchNames;
+        if (entry.mainline) {
+            branchNames = QStringList{m_currentBranch};
+        } else if (futureLaneBranches.contains(entry.oid)) {
+            branchNames = futureLaneBranches.take(entry.oid);
+        } else if (activeLaneBranches.contains(laneValue)) {
+            branchNames = activeLaneBranches.value(laneValue);
+        } else if (branchTips.contains(entry.oid)) {
+            branchNames = branchTips.value(entry.oid);
+        }
+        if (branchNames.isEmpty() && entry.mainline) {
+            branchNames = QStringList{m_currentBranch};
+        }
+        if (branchNames.isEmpty() && !entry.mainline) {
+            branchNames.append(tr("Unknown branch"));
+        }
+        entry.branchNames = branchNames;
+        if (!branchNames.isEmpty()) {
+            activeLaneBranches.insert(laneValue, branchNames);
+        }
 
         for (const QString &parentId : std::as_const(entry.parentIds)) {
             if (!pendingIds.contains(parentId) && !futureLanes.contains(parentId)) {
@@ -445,6 +475,22 @@ void CommitHistoryModel::collectCommits()
                 futureLanes.insert(parentId, parentLane);
             }
 
+            QStringList parentBranchNames;
+            if (parentMainline) {
+                parentBranchNames = QStringList{m_currentBranch};
+            } else if (futureLaneBranches.contains(parentId)) {
+                parentBranchNames = futureLaneBranches.value(parentId);
+            } else if (activeLaneBranches.contains(parentLane)) {
+                parentBranchNames = activeLaneBranches.value(parentLane);
+            } else if (!branchNames.isEmpty()) {
+                parentBranchNames = branchNames;
+            } else if (branchTips.contains(parentId)) {
+                parentBranchNames = branchTips.value(parentId);
+            }
+            if (!parentBranchNames.isEmpty()) {
+                futureLaneBranches.insert(parentId, parentBranchNames);
+            }
+
             m_minLane = std::min(m_minLane, parentLane);
             m_maxLane = std::max(m_maxLane, parentLane);
 
@@ -458,6 +504,7 @@ void CommitHistoryModel::collectCommits()
 
         for (auto it = futureLanes.begin(); it != futureLanes.end();) {
             if (!pendingIds.contains(it.key())) {
+                futureLaneBranches.remove(it.key());
                 it = futureLanes.erase(it);
             } else {
                 ++it;
@@ -468,15 +515,32 @@ void CommitHistoryModel::collectCommits()
         for (auto it = futureLanes.cbegin(); it != futureLanes.cend(); ++it) {
             futureUsed.insert(it.value());
         }
-        laneOrder = futureUsed.values().toVector();
-        std::sort(laneOrder.begin(), laneOrder.end());
-        ensureMainlineLane(laneOrder);
-
-        entry.lanesAfter = laneOrder;
+        if (!futureUsed.contains(0)) {
+            futureUsed.insert(0);
+        }
+        entry.lanesAfter = futureUsed.values().toVector();
+        std::sort(entry.lanesAfter.begin(), entry.lanesAfter.end());
         for (int lane : entry.lanesAfter) {
             m_minLane = std::min(m_minLane, lane);
             m_maxLane = std::max(m_maxLane, lane);
         }
+
+        QHash<int, QStringList> nextActiveLaneBranches;
+        for (auto it = futureLanes.cbegin(); it != futureLanes.cend(); ++it) {
+            const int lane = it.value();
+            QStringList names = futureLaneBranches.value(it.key());
+            if (lane == 0) {
+                names = QStringList{m_currentBranch};
+            }
+            if (!names.isEmpty()) {
+                nextActiveLaneBranches.insert(lane, names);
+            }
+        }
+        if (!nextActiveLaneBranches.contains(0)) {
+            nextActiveLaneBranches.insert(0, QStringList{m_currentBranch});
+        }
+        activeLaneBranches = nextActiveLaneBranches;
+        activeLanes = entry.lanesAfter;
 
         m_entries.append(entry);
     }
@@ -655,5 +719,43 @@ void CommitHistoryModel::filterRelevantCommits(QVector<CommitEntry> &entries) co
     }
 
     entries = filtered;
+}
+
+QHash<QString, QStringList> CommitHistoryModel::collectBranchTips() const
+{
+    QHash<QString, QStringList> result;
+    if (!m_repository) {
+        return result;
+    }
+
+    git_branch_iterator *iterator = nullptr;
+    if (git_branch_iterator_new(&iterator, m_repository, GIT_BRANCH_LOCAL) != 0) {
+        return result;
+    }
+
+    git_reference *ref = nullptr;
+    git_branch_t type;
+    while (git_branch_next(&ref, &type, iterator) == 0) {
+        git_reference *resolved = nullptr;
+        const git_oid *target = nullptr;
+        if (git_reference_resolve(&resolved, ref) == 0 && resolved) {
+            target = git_reference_target(resolved);
+        }
+        if (!target) {
+            target = git_reference_target(ref);
+        }
+        if (target) {
+            const QString oid = oidToString(*target);
+            const char *name = nullptr;
+            if (git_branch_name(&name, ref) == 0 && name) {
+                result[oid].append(QString::fromUtf8(name));
+            }
+        }
+        git_reference_free(resolved);
+        git_reference_free(ref);
+    }
+
+    git_branch_iterator_free(iterator);
+    return result;
 }
 

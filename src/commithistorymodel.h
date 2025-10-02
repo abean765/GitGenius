@@ -28,6 +28,7 @@ public:
         TimestampRole,
         RelativeTimeRole,
         ParentIdsRole,
+        BranchNamesRole,
         LaneRole,
         LanesBeforeRole,
         LanesAfterRole,
@@ -75,6 +76,7 @@ private:
         qint64 timestamp = 0;
         QString relativeTime;
         QStringList parentIds;
+        QStringList branchNames;
         QVector<int> lanesBefore;
         QVector<int> lanesAfter;
         QVector<Connection> connections;
@@ -93,6 +95,7 @@ private:
     static QString formatRelativeTime(qint64 timestamp);
     static QString buildLeftSummary(const QString &summary);
     void filterRelevantCommits(QVector<CommitEntry> &entries) const;
+    QHash<QString, QStringList> collectBranchTips() const;
 
     git_repository *m_repository = nullptr;
     QStringList m_branches;

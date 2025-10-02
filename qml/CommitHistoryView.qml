@@ -102,6 +102,12 @@ Frame {
                 property var connectionsData: connections
                 property int laneValue: lane
                 property bool mainlineState: mainline
+                property var branchNamesData: branchNames
+                property string branchLabel: {
+                    if (!branchNamesData || branchNamesData.length === 0)
+                        return ""
+                    return branchNamesData.join(", ")
+                }
 
                 visible: !collapsedMember
                 implicitHeight: collapsedMember ? 0 : Math.max(graphContainer.implicitHeight, 48)
@@ -111,6 +117,14 @@ Frame {
                 onConnectionsDataChanged: graphCanvas.requestPaint()
                 onLaneValueChanged: graphCanvas.requestPaint()
                 onMainlineStateChanged: graphCanvas.requestPaint()
+
+                HoverHandler {
+                    id: commitHover
+                }
+
+                ToolTip.visible: commitHover.hovered && delegateRoot.branchLabel.length > 0
+                ToolTip.text: delegateRoot.branchLabel
+                ToolTip.delay: 200
 
                 Rectangle {
                     id: contentItem
