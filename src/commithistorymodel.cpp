@@ -520,15 +520,15 @@ void CommitHistoryModel::collectCommits()
         }
         entry.lanesAfter = futureUsed.values().toVector();
         std::sort(entry.lanesAfter.begin(), entry.lanesAfter.end());
-        for (int lane : entry.lanesAfter) {
-            m_minLane = std::min(m_minLane, lane);
-            m_maxLane = std::max(m_maxLane, lane);
-        }
 
         QHash<int, QStringList> nextActiveLaneBranches;
         for (auto it = futureLanes.cbegin(); it != futureLanes.cend(); ++it) {
+            const QString commitId = it.key();
             const int lane = it.value();
-            QStringList names = futureLaneBranches.value(it.key());
+            QStringList names = futureLaneBranches.value(commitId);
+            if (names.isEmpty() && activeLaneBranches.contains(lane)) {
+                names = activeLaneBranches.value(lane);
+            }
             if (lane == 0) {
                 names = QStringList{m_currentBranch};
             }
@@ -541,6 +541,10 @@ void CommitHistoryModel::collectCommits()
         }
         activeLaneBranches = nextActiveLaneBranches;
         activeLanes = entry.lanesAfter;
+        for (int lane : entry.lanesAfter) {
+            m_minLane = std::min(m_minLane, lane);
+            m_maxLane = std::max(m_maxLane, lane);
+        }
 
         m_entries.append(entry);
     }

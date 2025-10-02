@@ -103,6 +103,8 @@ Frame {
                 property int laneValue: lane
                 property bool mainlineState: mainline
                 property var branchNamesData: branchNames
+                property real commitRadius: 6
+                property real commitCenterX: graphContainer.width / 2 + laneValue * root.laneSpacing
                 property string branchLabel: {
                     if (!branchNamesData || branchNamesData.length === 0)
                         return ""
@@ -118,11 +120,14 @@ Frame {
                 onLaneValueChanged: graphCanvas.requestPaint()
                 onMainlineStateChanged: graphCanvas.requestPaint()
 
-                HoverHandler {
-                    id: commitHover
+                ToolTip.visible: {
+                    if (!commitHover.hovered || delegateRoot.branchLabel.length === 0)
+                        return false
+                    var pos = commitHover.point.position
+                    var dx = pos.x - delegateRoot.commitCenterX
+                    var dy = pos.y - graphContainer.height / 2
+                    return dx * dx + dy * dy <= delegateRoot.commitRadius * delegateRoot.commitRadius
                 }
-
-                ToolTip.visible: commitHover.hovered && delegateRoot.branchLabel.length > 0
                 ToolTip.text: delegateRoot.branchLabel
                 ToolTip.delay: 200
 
@@ -222,6 +227,22 @@ Frame {
                                 }
                                 onWidthChanged: requestPaint()
                                 onHeightChanged: requestPaint()
+                            }
+
+                            HoverHandler {
+                                id: commitHover
+                                target: graphContainer
+                                acceptedDevices: PointerDevice.Mouse | PointerDevice.Stylus
+                                cursorShape: {
+                                    if (!hovered)
+                                        return Qt.ArrowCursor
+                                    var pos = point.position
+                                    var dx = pos.x - delegateRoot.commitCenterX
+                                    var dy = pos.y - graphContainer.height / 2
+                                    return (dx * dx + dy * dy) <= delegateRoot.commitRadius * delegateRoot.commitRadius
+                                            ? Qt.PointingHandCursor
+                                            : Qt.ArrowCursor
+                                }
                             }
                     }
 
