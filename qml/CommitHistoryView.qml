@@ -9,6 +9,8 @@ Frame {
     property string currentBranch: ""
     property color mainlineColor: Qt.rgba(0.17, 0.48, 0.9, 1)
     property color branchColor: Qt.rgba(0.54, 0.59, 0.63, 1)
+    property color evenRowColor: Qt.rgba(0.96, 0.97, 0.98, 1)
+    property color oddRowColor: Qt.rgba(1, 1, 1, 1)
     property real laneSpacing: 28
     property var expandedGroups: ({})
     property real graphColumnWidth: {
@@ -136,7 +138,7 @@ Frame {
                 Rectangle {
                     id: contentItem
                     anchors.fill: parent
-                    color: "transparent"
+                    color: index % 2 === 0 ? root.evenRowColor : root.oddRowColor
                     implicitHeight: graphContainer.implicitHeight
 
                         Item {
