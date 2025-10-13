@@ -489,6 +489,14 @@ void CommitHistoryModel::collectCommits()
 
         sortByLane(activeLanes);
 
+        entry.currentLanes.clear();
+        entry.currentLanes.reserve(activeLanes.size());
+        for (const LaneState &state : std::as_const(activeLanes)) {
+            entry.currentLanes.append(state.lane);
+            m_minLane = std::min(m_minLane, state.lane);
+            m_maxLane = std::max(m_maxLane, state.lane);
+        }
+
         QVector<LaneState> nextActive;
         nextActive.reserve(activeLanes.size() + entry.parentIds.size());
         for (const LaneState &state : std::as_const(activeLanes)) {
@@ -585,15 +593,15 @@ void CommitHistoryModel::collectCommits()
 
         sortByLane(nextActive);
 
-        entry.currentLanes.clear();
-        entry.currentLanes.reserve(nextActive.size());
+        QVector<int> lanesAfter;
+        lanesAfter.reserve(nextActive.size());
         for (const LaneState &state : std::as_const(nextActive)) {
-            entry.currentLanes.append(state.lane);
+            lanesAfter.append(state.lane);
             m_minLane = std::min(m_minLane, state.lane);
             m_maxLane = std::max(m_maxLane, state.lane);
         }
 
-        previousCurrentLanes = entry.currentLanes;
+        previousCurrentLanes = std::move(lanesAfter);
         activeLanes = nextActive;
 
         m_entries.append(entry);
