@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import QtQuick.Dialogs
+import Qt.labs.platform 1.1
 
 ApplicationWindow {
     id: window
@@ -12,8 +13,10 @@ ApplicationWindow {
 
     header: RepositoryHeader {
         repositoryPath: gitBackend.repositoryPath
+        repositoryRootFolder: gitBackend.repositoryRootFolder
         onOpenRequested: repositoryDialog.open()
         onRefreshRequested: gitBackend.refreshRepository()
+        onRootSelectionRequested: repositoryFolderDialog.open()
     }
 
     GitCommandDialog {
@@ -55,8 +58,19 @@ ApplicationWindow {
     FolderDialog {
         id: repositoryDialog
         title: qsTr("Open Git Repository")
-        onAccepted: {            
+        onAccepted: {
             gitBackend.openRepository(repositoryDialog.currentFolder)
+        }
+    }
+
+    FolderDialog {
+        id: repositoryFolderDialog
+        title: qsTr("Choose Repository Folder")
+        currentFolder: gitBackend.repositoryRootFolder.length > 0
+                       ? Qt.resolvedUrl(gitBackend.repositoryRootFolder)
+                       : Qt.resolvedUrl(StandardPaths.writableLocation(StandardPaths.HomeLocation))
+        onAccepted: {
+            gitBackend.setRepositoryRoot(repositoryFolderDialog.currentFolder)
         }
     }
 
@@ -76,6 +90,12 @@ ApplicationWindow {
             Layout.fillWidth: true
             Layout.preferredHeight: 280
             submoduleModel: gitBackend.submodules
+            repositorySelected: gitBackend.repositoryPath.length > 0
+            repositoryModel: gitBackend.availableRepositories
+            repositoryRootFolder: gitBackend.repositoryRootFolder
+            onRepositoryActivated: function(path) {
+                gitBackend.openRepositoryByPath(path)
+            }
         }
 
         RowLayout {

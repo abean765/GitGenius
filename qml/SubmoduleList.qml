@@ -5,6 +5,10 @@ import QtQuick.Layouts 1.15
 Frame {
     id: root
     property var submoduleModel: []
+    property var repositoryModel: []
+    property bool repositorySelected: false
+    property string repositoryRootFolder: ""
+    signal repositoryActivated(string path)
 
     readonly property int cardSize: 140
 
@@ -149,7 +153,11 @@ Frame {
         spacing: 8
 
         Label {
-            text: qsTr("Subrepositories")
+            text: repositorySelected
+                  ? qsTr("Subrepositories")
+                  : (repositoryRootFolder.length > 0
+                     ? qsTr("Repositories in %1").arg(repositoryRootFolder)
+                     : qsTr("Repositories"))
             font.bold: true
             Layout.fillWidth: true
         }
@@ -157,7 +165,7 @@ Frame {
         ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: submoduleModel.length > 0
+            visible: repositorySelected ? submoduleModel.length > 0 : repositoryModel.length > 0
             clip: true
 
             contentWidth: availableWidth
@@ -172,19 +180,20 @@ Frame {
                     anchors.fill: parent
                     anchors.margins: 12
                     spacing: 12
-                    //implicitHeight: childrenRect.height
 
                     Repeater {
-                        model: submoduleModel
+                        model: repositorySelected ? submoduleModel : repositoryModel
 
                         delegate: Item {
                             width: root.cardSize
                             height: root.cardSize
 
+                            readonly property bool isSubmoduleView: repositorySelected
                             readonly property string repoName: modelData.name || modelData.path || modelData.raw || ""
                             readonly property string displayName: root.leafName(repoName)
                             readonly property color baseColor: root.colorFromString(displayName || repoName)
                             readonly property string abbrev: root.abbreviationForName(displayName || repoName, 5)
+                            readonly property string statusText: isSubmoduleView ? (modelData.status || qsTr("Unknown")) : qsTr("Open repository")
 
                             Rectangle {
                                 anchors.fill: parent
@@ -217,7 +226,7 @@ Frame {
                                     }
 
                                     Label {
-                                        text: modelData.status || qsTr("Unknown")
+                                        text: statusText
                                         font.pixelSize: 11
                                         horizontalAlignment: Text.AlignHCenter
                                         color: root.textColorForBackground(baseColor, true)
@@ -225,14 +234,24 @@ Frame {
                                 }
 
                                 MouseArea {
+                                    id: hoverArea
                                     anchors.fill: parent
                                     hoverEnabled: true
-                                    acceptedButtons: Qt.NoButton
-                                    id: hoverArea
+                                    acceptedButtons: isSubmoduleView ? Qt.NoButton : Qt.LeftButton
+                                    cursorShape: (!isSubmoduleView && modelData.path) ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                    onClicked: {
+                                        if (!isSubmoduleView && modelData.path) {
+                                            root.repositoryActivated(modelData.path)
+                                        }
+                                    }
                                 }
 
                                 ToolTip.visible: hoverArea.containsMouse
                                 ToolTip.text: {
+                                    if (!isSubmoduleView) {
+                                        return modelData.path || repoName;
+                                    }
+
                                     var parts = [];
                                     if (displayName)
                                         parts.push(displayName);
@@ -249,14 +268,30 @@ Frame {
                     }
                 }
             }
+        }
 
-            Label {
-                visible: submoduleModel.length === 0
-                text: qsTr("No submodules detected")
-                horizontalAlignment: Text.AlignHCenter
-                Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
-                opacity: 0.6
-            }
+        Label {
+            visible: repositorySelected && submoduleModel.length === 0
+            text: qsTr("No submodules detected")
+            horizontalAlignment: Text.AlignHCenter
+            Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+            opacity: 0.6
+        }
+
+        Label {
+            visible: !repositorySelected && repositoryRootFolder.length > 0 && repositoryModel.length === 0
+            text: qsTr("No Git repositories found in the selected folder")
+            horizontalAlignment: Text.AlignHCenter
+            Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+            opacity: 0.6
+        }
+
+        Label {
+            visible: !repositorySelected && repositoryRootFolder.length === 0
+            text: qsTr("Choose a folder to discover repositories")
+            horizontalAlignment: Text.AlignHCenter
+            Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+            opacity: 0.6
         }
     }
 }
