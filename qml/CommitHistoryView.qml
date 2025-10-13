@@ -91,6 +91,9 @@ Frame {
             boundsBehavior: Flickable.StopAtBounds
             spacing: 0
             cacheBuffer: 480
+            ScrollBar.vertical: ScrollBar {
+                policy: ScrollBar.AlwaysOn
+            }
 
             delegate: Item {
                 id: delegateRoot

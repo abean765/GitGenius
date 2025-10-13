@@ -70,54 +70,53 @@ ApplicationWindow {
         }
     }
 
-    ColumnLayout {
+    SplitView {
         anchors.fill: parent
         anchors.margins: 12
-        spacing: 12
+        orientation: Qt.Vertical
 
         CommitHistoryView {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
+            SplitView.fillWidth: true
+            SplitView.fillHeight: true
             model: gitBackend.commitHistoryModel
             branches: gitBackend.branches
             currentBranch: gitBackend.currentBranch
             onBranchSelected: gitBackend.setCurrentBranch(branch)
         }
 
-        /*
-        StatusList {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            statusModel: gitBackend.status
-            onStageRequested: function(path) { gitBackend.stageFiles([path]) }
-        }
-        */
+        ColumnLayout {
+            id: repositoriesSection
+            SplitView.fillWidth: true
+            SplitView.preferredHeight: 280
+            SplitView.minimumHeight: 120
+            spacing: 12
 
-        SubmoduleList {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 280
-            repositoryPath: gitBackend.repositoryPath
-            repositoryRootPath: gitBackend.repositoryRootPath
-            repositoryModel: gitBackend.availableRepositories
-            submoduleModel: gitBackend.submodules
-            onRepositoryActivated: function(path) {
-                gitBackend.openRepositoryPath(path)
-            }
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 8
-
-            Button {
-                text: qsTr("Commit")
-                enabled: gitBackend.status && gitBackend.status.length > 0
-                onClicked: commitDialog.open()
+            SubmoduleList {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                repositoryPath: gitBackend.repositoryPath
+                repositoryRootPath: gitBackend.repositoryRootPath
+                repositoryModel: gitBackend.availableRepositories
+                submoduleModel: gitBackend.submodules
+                onRepositoryActivated: function(path) {
+                    gitBackend.openRepositoryPath(path)
+                }
             }
 
-            Button {
-                text: qsTr("Run Git Command")
-                onClicked: commandDialog.open()
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Button {
+                    text: qsTr("Commit")
+                    enabled: gitBackend.status && gitBackend.status.length > 0
+                    onClicked: commitDialog.open()
+                }
+
+                Button {
+                    text: qsTr("Run Git Command")
+                    onClicked: commandDialog.open()
+                }
             }
         }
     }
