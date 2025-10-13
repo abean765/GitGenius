@@ -106,9 +106,54 @@ Frame {
                 property var lanesAfterData: lanesAfter
                 property var connectionsData: connections
                 property var incomingConnectionsData: incomingConnections
+                property var parentIdsData: parentIds
+                property var branchNamesData: branchNames
+                property string commitTooltip: {
+                    function joinList(list) {
+                        if (!list || list.length === 0) {
+                            return "(none)";
+                        }
+                        return list.join(", ");
+                    }
+
+                    function describeConnections(list) {
+                        if (!list || list.length === 0) {
+                            return "(none)";
+                        }
+                        return list.map(function(edge) {
+                            const parts = [];
+                            parts.push(`from: ${edge.from}`);
+                            parts.push(`to: ${edge.to}`);
+                            parts.push(`mainline: ${edge.mainline}`);
+                            parts.push(`parentMainline: ${edge.parentMainline}`);
+                            return `{ ${parts.join(", ")} }`;
+                        }).join("\n");
+                    }
+
+                    const lines = [];
+                    lines.push(`Summary: ${summary}`);
+                    lines.push(`Left Summary: ${leftSummary}`);
+                    lines.push(`Author: ${author}`);
+                    lines.push(`Author Email: ${authorEmail}`);
+                    lines.push(`Relative Time: ${relativeTime}`);
+                    lines.push(`Timestamp: ${timestamp}`);
+                    lines.push(`OID: ${oid}`);
+                    lines.push(`Short OID: ${shortOid}`);
+                    lines.push(`Branch Names: ${joinList(branchNamesData)}`);
+                    lines.push(`Parent IDs: ${joinList(parentIdsData)}`);
+                    lines.push(`Lane: ${laneValue}`);
+                    lines.push(`Mainline: ${mainlineState}`);
+                    lines.push(`Lanes Before: ${joinList(lanesBeforeData)}`);
+                    lines.push(`Lanes After: ${joinList(lanesAfterData)}`);
+                    lines.push(`Connections:\n${describeConnections(connectionsData)}`);
+                    lines.push(`Incoming Connections:\n${describeConnections(incomingConnectionsData)}`);
+                    lines.push(`Group Key: ${groupKey}`);
+                    lines.push(`Group Size: ${groupSize}`);
+                    lines.push(`Group Index: ${groupIndex}`);
+                    return lines.join("\n");
+                }
                 property int laneValue: lane
                 property bool mainlineState: mainline
-                property var branchNamesData: branchNames
                 property real commitRadius: 6
                 property real commitCenterX: graphContainer.width / 2 + laneValue * root.laneSpacing
                 property string branchLabel: {
@@ -128,14 +173,14 @@ Frame {
                 onMainlineStateChanged: graphCanvas.requestPaint()
 
                 ToolTip.visible: {
-                    if (!commitHover.hovered || delegateRoot.branchLabel.length === 0)
+                    if (!commitHover.hovered)
                         return false
                     var pos = commitHover.point.position
                     var dx = pos.x - delegateRoot.commitCenterX
                     var dy = pos.y - graphContainer.height / 2
                     return dx * dx + dy * dy <= delegateRoot.commitRadius * delegateRoot.commitRadius
                 }
-                ToolTip.text: delegateRoot.branchLabel
+                ToolTip.text: delegateRoot.commitTooltip
                 ToolTip.delay: 200
 
                 Rectangle {
