@@ -1,12 +1,16 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QCoreApplication>
 
 #include "backend.h"
 #include "gitclientbackend.h"
 
 int main(int argc, char *argv[])
 {
+    QCoreApplication::setOrganizationName(QStringLiteral("GitGenius"));
+    QCoreApplication::setApplicationName(QStringLiteral("GitGenius"));
+
     QGuiApplication app(argc, argv);
 
     QQmlApplicationEngine engine;

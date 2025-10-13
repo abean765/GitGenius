@@ -4,6 +4,7 @@
 #include <QFileInfo>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QSettings>
 #include <QVariantMap>
 
 #include <git2.h>
@@ -109,6 +110,12 @@ GitClientBackend::GitClientBackend(QObject *parent)
     : QObject(parent)
 {
     git_libgit2_init();
+
+    QSettings settings;
+    m_repositoryRootFolder = settings.value(QStringLiteral("repositoryRootFolder")).toString();
+    if (!m_repositoryRootFolder.isEmpty()) {
+        updateAvailableRepositories();
+    }
 }
 
 GitClientBackend::~GitClientBackend()
@@ -133,6 +140,16 @@ QVariantList GitClientBackend::status() const
 QVariantList GitClientBackend::submodules() const
 {
     return m_submodules;
+}
+
+QString GitClientBackend::repositoryRootFolder() const
+{
+    return m_repositoryRootFolder;
+}
+
+QVariantList GitClientBackend::availableRepositories() const
+{
+    return m_availableRepositories;
 }
 
 bool GitClientBackend::openRepository(const QUrl &url)
@@ -175,7 +192,15 @@ bool GitClientBackend::openRepository(const QUrl &url)
     m_repositoryPath = canonical;
     emit repositoryPathChanged();
     refreshRepository();
+    if (!m_repositoryRootFolder.isEmpty()) {
+        updateAvailableRepositories();
+    }
     return true;
+}
+
+bool GitClientBackend::openRepositoryByPath(const QString &path)
+{
+    return openRepository(QUrl::fromLocalFile(path));
 }
 
 void GitClientBackend::refreshRepository()
@@ -185,6 +210,23 @@ void GitClientBackend::refreshRepository()
     }
     updateStatus();
     updateSubmodules();
+}
+
+bool GitClientBackend::setRepositoryRoot(const QUrl &url)
+{
+    const QString localPath = url.toLocalFile();
+    if (localPath.isEmpty()) {
+        setRepositoryRootFolder(QString());
+        return false;
+    }
+
+    setRepositoryRootFolder(localPath);
+    return !m_repositoryRootFolder.isEmpty();
+}
+
+void GitClientBackend::refreshAvailableRepositories()
+{
+    updateAvailableRepositories();
 }
 
 QVariantMap GitClientBackend::runCustomCommand(const QStringList &arguments)
@@ -425,4 +467,100 @@ void GitClientBackend::updateSubmodules()
     git_submodule_foreach(m_repository, callback, &payload);
 
     emit submodulesChanged();
+}
+
+bool GitClientBackend::isGitRepository(const QDir &dir)
+{
+    if (!dir.exists()) {
+        return false;
+    }
+
+    const QFileInfo gitEntry(dir.absoluteFilePath(QStringLiteral(".git")));
+    const bool hasGitDirectory = dir.exists(QStringLiteral(".git"));
+    const bool hasGitFile = gitEntry.exists() && gitEntry.isFile();
+    const bool looksBare = QFileInfo(dir.absoluteFilePath(QStringLiteral("HEAD"))).exists();
+    return hasGitDirectory || hasGitFile || looksBare;
+}
+
+void GitClientBackend::setRepositoryRootFolder(const QString &path)
+{
+    QString normalizedPath = path;
+    if (!normalizedPath.isEmpty()) {
+        QDir dir(normalizedPath);
+        if (!dir.exists()) {
+            normalizedPath.clear();
+        } else {
+            const QString canonical = dir.canonicalPath();
+            if (!canonical.isEmpty()) {
+                normalizedPath = canonical;
+            } else {
+                normalizedPath = dir.absolutePath();
+            }
+        }
+    }
+
+    if (normalizedPath == m_repositoryRootFolder) {
+        updateAvailableRepositories();
+        return;
+    }
+
+    m_repositoryRootFolder = normalizedPath;
+    emit repositoryRootFolderChanged();
+
+    QSettings settings;
+    if (m_repositoryRootFolder.isEmpty()) {
+        settings.remove(QStringLiteral("repositoryRootFolder"));
+    } else {
+        settings.setValue(QStringLiteral("repositoryRootFolder"), m_repositoryRootFolder);
+    }
+
+    updateAvailableRepositories();
+}
+
+void GitClientBackend::updateAvailableRepositories()
+{
+    m_availableRepositories.clear();
+
+    if (m_repositoryRootFolder.isEmpty()) {
+        emit availableRepositoriesChanged();
+        return;
+    }
+
+    QDir rootDir(m_repositoryRootFolder);
+    if (!rootDir.exists()) {
+        emit availableRepositoriesChanged();
+        return;
+    }
+
+    auto appendRepository = [this](const QString &name, const QString &absolutePath) {
+        QString displayName = name;
+        if (displayName.isEmpty()) {
+            displayName = QFileInfo(absolutePath).fileName();
+        }
+        if (displayName.isEmpty()) {
+            displayName = absolutePath;
+        }
+        QVariantMap entry;
+        entry.insert(QStringLiteral("name"), displayName);
+        entry.insert(QStringLiteral("path"), absolutePath);
+        entry.insert(QStringLiteral("raw"), absolutePath);
+        m_availableRepositories.append(entry);
+    };
+
+    if (isGitRepository(rootDir)) {
+        appendRepository(QFileInfo(m_repositoryRootFolder).fileName(), rootDir.absolutePath());
+    }
+
+    const QFileInfoList entries = rootDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    for (const QFileInfo &info : entries) {
+        QDir candidate(info.absoluteFilePath());
+        if (!candidate.exists()) {
+            continue;
+        }
+        if (isGitRepository(candidate)) {
+            appendRepository(info.fileName(), candidate.absolutePath());
+        }
+    }
+
+    emit availableRepositoriesChanged();
 }
