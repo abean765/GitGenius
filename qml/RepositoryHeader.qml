@@ -5,8 +5,10 @@ import QtQuick.Layouts 1.15
 ToolBar {
     id: toolbar
     property string repositoryPath: ""
+    property string repositoryFolder: ""
     signal openRequested()
     signal refreshRequested()
+    signal chooseFolderRequested()
 
     RowLayout {
         anchors.fill: parent
@@ -22,6 +24,15 @@ ToolBar {
             ToolTip.text: qsTr("Open repository")
         }
 
+        ToolButton {
+            icon.source: "qrc:/GitGenius/assets/icons/submodule.svg"
+            text: qsTr("Workspace")
+            display: AbstractButton.IconOnly
+            onClicked: toolbar.chooseFolderRequested()
+            ToolTip.visible: hovered
+            ToolTip.text: qsTr("Choose repository folder")
+        }
+
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 2
@@ -34,7 +45,11 @@ ToolBar {
             }
 
             Label {
-                text: repositoryPath.length > 0 ? qsTr("Status and submodules are displayed below") : qsTr("Use the folder button to choose a Git repository")
+                text: repositoryPath.length > 0
+                      ? qsTr("Status and submodules are displayed below")
+                      : (repositoryFolder.length > 0
+                         ? qsTr("Repositories from %1 are listed below").arg(repositoryFolder)
+                         : qsTr("Use the workspace button to choose a folder with Git repositories"))
                 color: palette.placeholderText
                 font.pixelSize: 12
                 elide: Label.ElideRight

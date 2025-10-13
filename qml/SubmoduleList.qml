@@ -5,8 +5,14 @@ import QtQuick.Layouts 1.15
 Frame {
     id: root
     property var submoduleModel: []
+    property var repositoryModel: []
+    property string repositoryPath: ""
+    property string repositoryRootPath: ""
+    signal repositoryActivated(string path)
 
     readonly property int cardSize: 140
+    readonly property bool showingRepositories: repositoryPath.length === 0
+    readonly property bool hasRepositoryRoot: repositoryRootPath.length > 0
 
     function _stringToHash(value) {
         var hash = 0;
@@ -149,7 +155,11 @@ Frame {
         spacing: 8
 
         Label {
-            text: qsTr("Subrepositories")
+            text: showingRepositories
+                  ? (hasRepositoryRoot
+                     ? qsTr("Repositories in %1").arg(repositoryRootPath)
+                     : qsTr("Repositories"))
+                  : qsTr("Subrepositories")
             font.bold: true
             Layout.fillWidth: true
         }
@@ -157,7 +167,7 @@ Frame {
         ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: submoduleModel.length > 0
+            visible: showingRepositories ? repositoryModel.length > 0 : submoduleModel.length > 0
             clip: true
 
             contentWidth: availableWidth
@@ -172,10 +182,9 @@ Frame {
                     anchors.fill: parent
                     anchors.margins: 12
                     spacing: 12
-                    //implicitHeight: childrenRect.height
 
                     Repeater {
-                        model: submoduleModel
+                        model: showingRepositories ? repositoryModel : submoduleModel
 
                         delegate: Item {
                             width: root.cardSize
@@ -227,8 +236,16 @@ Frame {
                                 MouseArea {
                                     anchors.fill: parent
                                     hoverEnabled: true
-                                    acceptedButtons: Qt.NoButton
+                                    acceptedButtons: root.showingRepositories ? Qt.LeftButton : Qt.NoButton
                                     id: hoverArea
+                                    onClicked: {
+                                        if (!root.showingRepositories)
+                                            return
+                                        var candidate = modelData.path || modelData.raw || ""
+                                        if (!candidate || candidate.length === 0)
+                                            return
+                                        root.repositoryActivated(candidate)
+                                    }
                                 }
 
                                 ToolTip.visible: hoverArea.containsMouse
@@ -242,6 +259,8 @@ Frame {
                                         parts.push(modelData.details);
                                     if (modelData.commit)
                                         parts.push(qsTr("Commit %1").arg(modelData.commit));
+                                    if (root.showingRepositories)
+                                        parts.push(qsTr("Click to open repository"));
                                     return parts.join("\n");
                                 }
                             }
@@ -249,14 +268,19 @@ Frame {
                     }
                 }
             }
+        }
 
-            Label {
-                visible: submoduleModel.length === 0
-                text: qsTr("No submodules detected")
-                horizontalAlignment: Text.AlignHCenter
-                Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
-                opacity: 0.6
-            }
+        Label {
+            visible: showingRepositories ? repositoryModel.length === 0 : submoduleModel.length === 0
+            text: showingRepositories
+                  ? (hasRepositoryRoot
+                     ? qsTr("No repositories found in %1").arg(repositoryRootPath)
+                     : qsTr("Choose a workspace folder to list repositories"))
+                  : qsTr("No submodules detected")
+            horizontalAlignment: Text.AlignHCenter
+            Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+            opacity: 0.6
+            wrapMode: Text.Wrap
         }
     }
 }

@@ -24,6 +24,9 @@ class GitClientBackend : public QObject
     Q_PROPERTY(QString repositoryPath READ repositoryPath NOTIFY repositoryPathChanged FINAL)
     Q_PROPERTY(QVariantList status READ status NOTIFY statusChanged FINAL)
     Q_PROPERTY(QVariantList submodules READ submodules NOTIFY submodulesChanged FINAL)
+    Q_PROPERTY(QVariantList availableRepositories READ availableRepositories NOTIFY availableRepositoriesChanged FINAL)
+    Q_PROPERTY(QUrl repositoryRoot READ repositoryRoot WRITE setRepositoryRoot NOTIFY repositoryRootChanged FINAL)
+    Q_PROPERTY(QString repositoryRootPath READ repositoryRootPath NOTIFY repositoryRootChanged FINAL)
     Q_PROPERTY(QStringList branches READ branches NOTIFY branchesChanged FINAL)
     Q_PROPERTY(QString currentBranch READ currentBranch WRITE setCurrentBranch NOTIFY currentBranchChanged FINAL)
     Q_PROPERTY(QObject *commitHistoryModel READ commitHistoryModel CONSTANT)
@@ -35,11 +38,17 @@ public:
     QString repositoryPath() const;
     QVariantList status() const;
     QVariantList submodules() const;
+    QVariantList availableRepositories() const;
     QStringList branches() const;
     QString currentBranch() const;
     QObject *commitHistoryModel() const;
+    QUrl repositoryRoot() const;
+    QString repositoryRootPath() const;
 
     Q_INVOKABLE bool openRepository(const QUrl &url);
+    Q_INVOKABLE bool openRepositoryPath(const QString &path);
+    Q_INVOKABLE void setRepositoryRoot(const QUrl &url);
+    Q_INVOKABLE void refreshAvailableRepositories();
     Q_INVOKABLE void refreshRepository();
     Q_INVOKABLE QVariantMap runCustomCommand(const QStringList &arguments);
     Q_INVOKABLE bool stageFiles(const QStringList &files);
@@ -50,11 +59,14 @@ signals:
     void repositoryPathChanged();
     void statusChanged();
     void submodulesChanged();
+    void availableRepositoriesChanged();
+    void repositoryRootChanged();
     void branchesChanged();
     void currentBranchChanged();
     void commandExecuted(const QVariantMap &result);
 
 private:
+    void updateAvailableRepositories();
     GitCommandResult runGit(const QStringList &arguments, const QByteArray &input = QByteArray()) const;
     void updateStatus();
     void updateSubmodules();
@@ -62,6 +74,8 @@ private:
     QString m_repositoryPath;
     QVariantList m_status;
     QVariantList m_submodules;
+    QVariantList m_availableRepositories;
+    QString m_repositoryRootPath;
     git_repository *m_repository = nullptr;
     CommitHistoryModel *m_commitHistoryModel = nullptr;
 };

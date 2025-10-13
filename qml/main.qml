@@ -12,8 +12,10 @@ ApplicationWindow {
 
     header: RepositoryHeader {
         repositoryPath: gitBackend.repositoryPath
+        repositoryFolder: gitBackend.repositoryRootPath
         onOpenRequested: repositoryDialog.open()
         onRefreshRequested: gitBackend.refreshRepository()
+        onChooseFolderRequested: workspaceDialog.open()
     }
 
     GitCommandDialog {
@@ -55,8 +57,16 @@ ApplicationWindow {
     FolderDialog {
         id: repositoryDialog
         title: qsTr("Open Git Repository")
-        onAccepted: {            
+        onAccepted: {
             gitBackend.openRepository(repositoryDialog.currentFolder)
+        }
+    }
+
+    FolderDialog {
+        id: workspaceDialog
+        title: qsTr("Choose Repository Folder")
+        onAccepted: {
+            gitBackend.setRepositoryRoot(workspaceDialog.currentFolder)
         }
     }
 
@@ -86,7 +96,13 @@ ApplicationWindow {
         SubmoduleList {
             Layout.fillWidth: true
             Layout.preferredHeight: 280
+            repositoryPath: gitBackend.repositoryPath
+            repositoryRootPath: gitBackend.repositoryRootPath
+            repositoryModel: gitBackend.availableRepositories
             submoduleModel: gitBackend.submodules
+            onRepositoryActivated: function(path) {
+                gitBackend.openRepositoryPath(path)
+            }
         }
 
         RowLayout {
