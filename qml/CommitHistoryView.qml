@@ -212,6 +212,7 @@ Frame {
                                         ctx.stroke()
                                     }
 
+                                    /*
                                     for (let i = 0; i < after.length; ++i) {
                                         const laneId = after[i]
                                         const x = laneToX(laneId)
@@ -223,6 +224,8 @@ Frame {
                                         ctx.lineTo(x, bottom)
                                         ctx.stroke()
                                     }
+                                    */
+
 
                                     for (let i = 0; i < edges.length; ++i) {
                                         const edge = edges[i]
@@ -236,12 +239,15 @@ Frame {
                                             ctx.moveTo(fromX, mid)
                                             ctx.lineTo(toX, bottom)
                                         } else {
+                                            /*
                                             const controlOffset = Math.min(Math.abs(toX - fromX) * 0.5, root.laneSpacing * 2)
                                             ctx.moveTo(fromX, mid)
                                             ctx.bezierCurveTo(fromX, mid + controlOffset, toX, mid + controlOffset, toX, bottom)
+                                            */
                                         }
                                         ctx.stroke()
                                     }
+
 
                                     const laneX = laneToX(laneValue)
                                     ctx.fillStyle = delegateRoot.mainlineState ? root.mainlineColor : root.branchColor
