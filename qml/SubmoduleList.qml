@@ -61,35 +61,6 @@ Frame {
         return luminance > 0.6 ? "#202020" : "#ffffff";
     }
 
-    function _nextDistinctLetter(pool, preferVowel, used) {
-        if (!pool)
-            return "";
-        var vowels = "AEIOUY";
-        var vowelCandidate = "";
-        var consonantCandidate = "";
-        used = used || [];
-        for (var i = 0; i < pool.length; ++i) {
-            var ch = pool[i];
-            if (!(/[A-Za-z0-9]/).test(ch))
-                continue;
-            var upper = ch.toUpperCase();
-            if (used.indexOf(upper) !== -1)
-                continue;
-            if (vowels.indexOf(upper) !== -1) {
-                if (!vowelCandidate)
-                    vowelCandidate = upper;
-                if (preferVowel)
-                    return upper;
-            } else {
-                if (!consonantCandidate)
-                    consonantCandidate = upper;
-                if (!preferVowel)
-                    return upper;
-            }
-        }
-        return preferVowel ? (vowelCandidate || consonantCandidate) : (consonantCandidate || vowelCandidate);
-    }
-
     function abbreviationForName(name, length) {
         length = Math.max(1, length || 5);
 
@@ -101,47 +72,93 @@ Frame {
             normalized = name.replace(/[^A-Za-z0-9]/g, "");
 
         var tokens = normalized.split(/\s+/).filter(function(token) { return token.length > 0; });
+        if (tokens.length === 0) {
+            var fallback = name.replace(/[^A-Za-z0-9]/g, "");
+            if (fallback.length)
+                tokens = [fallback];
+        }
+
         if (tokens.length === 0)
-            tokens = [name.replace(/[^A-Za-z0-9]/g, "")];
+            return Array(length + 1).join("?").slice(0, length);
 
-        var used = [];
+        var combined = tokens.join("");
+        if (!combined.length)
+            return Array(length + 1).join("?").slice(0, length);
+
         var letters = [];
+        var used = [];
+        var lastIndex = -1;
+        var vowels = "AEIOUY";
 
-        function addLetter(letter) {
-            if (!letter)
-                return;
-            var upper = letter.toUpperCase();
-            if (used.indexOf(upper) === -1) {
-                letters.push(upper);
-                used.push(upper);
+        function addCharAt(index) {
+            if (index <= lastIndex || index < 0 || index >= combined.length)
+                return false;
+
+            var ch = combined[index];
+            if (!(/[A-Za-z0-9]/).test(ch))
+                return false;
+
+            var upper = ch.toUpperCase();
+            if (used.indexOf(upper) !== -1)
+                return false;
+
+            letters.push(upper);
+            used.push(upper);
+            lastIndex = index;
+            return true;
+        }
+
+        var offsets = [];
+        var offset = 0;
+        for (var t = 0; t < tokens.length; ++t) {
+            offsets.push(offset);
+            offset += tokens[t].length;
+        }
+
+        for (var i = 0; i < tokens.length && letters.length < length; ++i) {
+            var token = tokens[i];
+            var baseIndex = offsets[i];
+            for (var j = 0; j < token.length; ++j) {
+                if (addCharAt(baseIndex + j))
+                    break;
             }
         }
 
-        addLetter(tokens[0][0]);
-
-        if (tokens.length > 1)
-            addLetter(tokens[tokens.length - 1][0]);
-
-        if (tokens.length > 2) {
-            var middleIndex = Math.floor(tokens.length / 2);
-            if (middleIndex === tokens.length - 1)
-                middleIndex = Math.max(1, tokens.length - 2);
-            addLetter(tokens[middleIndex][0]);
-        } else {
-            var searchPool = tokens[0].slice(1);
-            if (tokens.length > 1)
-                searchPool += tokens[1].slice(1);
-            var preferred = _nextDistinctLetter(searchPool, true, used);
-            addLetter(preferred);
-        }
-
-        var combined = tokens.join("");
         while (letters.length < length) {
-            var preferVowel = letters.length === 1;
-            var next = _nextDistinctLetter(combined, preferVowel, used);
-            if (!next)
+            var preferVowel = letters.length === 1 && vowels.indexOf(letters[0]) === -1;
+            var chosenIndex = -1;
+            var fallbackIndex = -1;
+
+            for (var idx = lastIndex + 1; idx < combined.length; ++idx) {
+                var candidate = combined[idx];
+                if (!(/[A-Za-z0-9]/).test(candidate))
+                    continue;
+
+                var upperCandidate = candidate.toUpperCase();
+                if (used.indexOf(upperCandidate) !== -1)
+                    continue;
+
+                if (!preferVowel) {
+                    chosenIndex = idx;
+                    break;
+                }
+
+                if (vowels.indexOf(upperCandidate) !== -1) {
+                    chosenIndex = idx;
+                    break;
+                }
+
+                if (fallbackIndex === -1)
+                    fallbackIndex = idx;
+            }
+
+            if (chosenIndex === -1)
+                chosenIndex = fallbackIndex;
+
+            if (chosenIndex === -1)
                 break;
-            addLetter(next);
+
+            addCharAt(chosenIndex);
         }
 
         while (letters.length < length)
