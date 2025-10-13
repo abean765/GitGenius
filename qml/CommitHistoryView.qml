@@ -117,29 +117,35 @@ Frame {
                     return branchNamesData.join(", ")
                 }
                 property string tooltipText: {
-                    const data = {
-                        oid: oid,
-                        shortOid: shortOid,
-                        summary: summary,
-                        leftSummary: leftSummary,
-                        author: author,
-                        authorEmail: authorEmail,
-                        timestamp: timestamp,
-                        relativeTime: relativeTime,
-                        parentIds: parentIds || [],
-                        branchLabel: branchLabel,
-                        branchNames: branchNamesData || [],
-                        lane: laneValue,
-                        lanesBefore: lanesBeforeData || [],
-                        currentLanes: currentLanesData || [],
-                        connections: connectionsData || [],
-                        incomingConnections: incomingConnectionsData || [],
-                        mainline: mainlineState,
-                        groupKey: groupKey,
-                        groupSize: groupSize,
-                        groupIndex: groupIndex
+                    const entries = [
+                        ["oid", oid],
+                        ["shortOid", shortOid],
+                        ["summary", summary],
+                        ["leftSummary", leftSummary],
+                        ["author", author],
+                        ["authorEmail", authorEmail],
+                        ["timestamp", timestamp],
+                        ["relativeTime", relativeTime],
+                        ["parentIds", parentIds || []],
+                        ["branchLabel", branchLabel],
+                        ["branchNames", branchNamesData || []],
+                        ["lane", laneValue],
+                        ["lanesBefore", lanesBeforeData || []],
+                        ["currentLanes", currentLanesData || []],
+                        ["connections", connectionsData || []],
+                        ["incomingConnections", incomingConnectionsData || []],
+                        ["mainline", mainlineState],
+                        ["groupKey", groupKey],
+                        ["groupSize", groupSize],
+                        ["groupIndex", groupIndex]
+                    ]
+
+                    function toLine(key, value, isLast) {
+                        return `  "${key}": ${JSON.stringify(value)}${isLast ? "" : ","}`
                     }
-                    return JSON.stringify(data, null, 2)
+
+                    const lines = entries.map((entry, index) => toLine(entry[0], entry[1], index === entries.length - 1))
+                    return `{\n${lines.join("\n")}\n}`
                 }
 
                 visible: !collapsedMember
