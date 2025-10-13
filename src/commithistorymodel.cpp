@@ -449,7 +449,17 @@ void CommitHistoryModel::collectCommits()
         } else if (laneIndex >= 0) {
             laneValue = activeLanes.at(laneIndex).lane;
         } else if (!entry.incomingConnections.isEmpty()) {
-            laneValue = entry.incomingConnections.first().toLane;
+            int selectedLane = std::numeric_limits<int>::max();
+            for (const Connection &incoming : std::as_const(entry.incomingConnections)) {
+                if (incoming.parentMainline == entry.mainline) {
+                    selectedLane = incoming.toLane;
+                    break;
+                }
+            }
+            if (selectedLane == std::numeric_limits<int>::max()) {
+                selectedLane = entry.incomingConnections.first().toLane;
+            }
+            laneValue = selectedLane;
         } else {
             usedLanes.insert(0);
             laneValue = allocateLane(usedLanes);
