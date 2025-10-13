@@ -31,7 +31,7 @@ public:
         BranchNamesRole,
         LaneRole,
         LanesBeforeRole,
-        LanesAfterRole,
+        CurrentLanesRole,
         ConnectionsRole,
         IncomingConnectionsRole,
         IsMainlineRole,
@@ -79,7 +79,7 @@ private:
         QStringList parentIds;
         QStringList branchNames;
         QVector<int> lanesBefore;
-        QVector<int> lanesAfter;
+        QVector<int> currentLanes;
         QVector<Connection> connections;
         QVector<Connection> incomingConnections;
         int laneValue = 0;

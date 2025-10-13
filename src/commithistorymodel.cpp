@@ -76,10 +76,10 @@ QVariant CommitHistoryModel::data(const QModelIndex &index, int role) const
         }
         return values;
     }
-    case LanesAfterRole: {
+    case CurrentLanesRole: {
         QVariantList values;
-        values.reserve(entry.lanesAfter.size());
-        for (int lane : entry.lanesAfter) {
+        values.reserve(entry.currentLanes.size());
+        for (int lane : entry.currentLanes) {
             values.append(lane);
         }
         return values;
@@ -138,7 +138,7 @@ QHash<int, QByteArray> CommitHistoryModel::roleNames() const
     roles.insert(BranchNamesRole, "branchNames");
     roles.insert(LaneRole, "lane");
     roles.insert(LanesBeforeRole, "lanesBefore");
-    roles.insert(LanesAfterRole, "lanesAfter");
+    roles.insert(CurrentLanesRole, "currentLanes");
     roles.insert(ConnectionsRole, "connections");
     roles.insert(IncomingConnectionsRole, "incomingConnections");
     roles.insert(IsMainlineRole, "mainline");
@@ -422,7 +422,11 @@ void CommitHistoryModel::collectCommits()
 
     sortByLane(activeLanes);
 
+    QVector<int> previousCurrentLanes;
+
     for (CommitEntry entry : collected) {
+        entry.lanesBefore = previousCurrentLanes;
+
         pendingIds.remove(entry.oid);
 
         entry.incomingConnections = pendingIncoming.take(entry.oid);
@@ -484,14 +488,6 @@ void CommitHistoryModel::collectCommits()
         }
 
         sortByLane(activeLanes);
-
-        entry.lanesBefore.clear();
-        entry.lanesBefore.reserve(activeLanes.size());
-        for (const LaneState &state : std::as_const(activeLanes)) {
-            entry.lanesBefore.append(state.lane);
-            m_minLane = std::min(m_minLane, state.lane);
-            m_maxLane = std::max(m_maxLane, state.lane);
-        }
 
         QVector<LaneState> nextActive;
         nextActive.reserve(activeLanes.size() + entry.parentIds.size());
@@ -589,14 +585,15 @@ void CommitHistoryModel::collectCommits()
 
         sortByLane(nextActive);
 
-        entry.lanesAfter.clear();
-        entry.lanesAfter.reserve(nextActive.size());
+        entry.currentLanes.clear();
+        entry.currentLanes.reserve(nextActive.size());
         for (const LaneState &state : std::as_const(nextActive)) {
-            entry.lanesAfter.append(state.lane);
+            entry.currentLanes.append(state.lane);
             m_minLane = std::min(m_minLane, state.lane);
             m_maxLane = std::max(m_maxLane, state.lane);
         }
 
+        previousCurrentLanes = entry.currentLanes;
         activeLanes = nextActive;
 
         m_entries.append(entry);

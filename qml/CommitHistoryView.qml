@@ -103,7 +103,7 @@ Frame {
                 property bool header: collapsible && groupIndex === 0
                 property bool collapsedMember: collapsible && groupIndex > 0 && !groupExpanded
                 property var lanesBeforeData: lanesBefore
-                property var lanesAfterData: lanesAfter
+                property var currentLanesData: currentLanes
                 property var connectionsData: connections
                 property var incomingConnectionsData: incomingConnections
                 property int laneValue: lane
@@ -121,7 +121,7 @@ Frame {
                 implicitHeight: collapsedMember ? 0 : Math.max(graphContainer.implicitHeight, 48)
 
                 onLanesBeforeDataChanged: graphCanvas.requestPaint()
-                onLanesAfterDataChanged: graphCanvas.requestPaint()
+                onCurrentLanesDataChanged: graphCanvas.requestPaint()
                 onConnectionsDataChanged: graphCanvas.requestPaint()
                 onIncomingConnectionsDataChanged: graphCanvas.requestPaint()
                 onLaneValueChanged: graphCanvas.requestPaint()
@@ -175,7 +175,7 @@ Frame {
                                     const bottom = height
                                     const mid = height / 2
                                     const before = lanesBeforeData || []
-                                    const after = lanesAfterData || []
+                                    const current = currentLanesData || []
                                     const edges = connectionsData || []
                                     const incoming = incomingConnectionsData || []
 
@@ -218,8 +218,8 @@ Frame {
                                         lanesWithConnections.add(edge.to)
                                     }
 
-                                    for (let i = 0; i < after.length; ++i) {
-                                        const laneId = after[i]
+                                    for (let i = 0; i < current.length; ++i) {
+                                        const laneId = current[i]
                                         if (lanesWithConnections.has(laneId)) {
                                             continue
                                         }
