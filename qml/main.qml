@@ -74,12 +74,14 @@ ApplicationWindow {
             onBranchSelected: gitBackend.setCurrentBranch(branch)
         }
 
+        /*
         StatusList {
             Layout.fillWidth: true
             Layout.fillHeight: true
             statusModel: gitBackend.status
             onStageRequested: function(path) { gitBackend.stageFiles([path]) }
         }
+        */
 
         SubmoduleList {
             Layout.fillWidth: true

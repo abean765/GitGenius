@@ -713,7 +713,7 @@ QString CommitHistoryModel::formatRelativeTime(qint64 timestamp)
     if (seconds < 86400 * 7) {
         return QObject::tr("%1 days ago").arg(seconds / 86400);
     }
-    return commitTime.toString(Qt::DefaultLocaleShortDate);
+    return commitTime.toString();
 }
 
 QString CommitHistoryModel::buildLeftSummary(const QString &summary)
