@@ -212,9 +212,17 @@ Frame {
                                         ctx.stroke()
                                     }
 
-                                    /*
+                                    const lanesWithConnections = new Set()
+                                    for (let i = 0; i < edges.length; ++i) {
+                                        const edge = edges[i]
+                                        lanesWithConnections.add(edge.to)
+                                    }
+
                                     for (let i = 0; i < after.length; ++i) {
                                         const laneId = after[i]
+                                        if (lanesWithConnections.has(laneId)) {
+                                            continue
+                                        }
                                         const x = laneToX(laneId)
                                         const isMainlineLane = laneId === 0
                                         ctx.strokeStyle = isMainlineLane ? root.mainlineColor : root.branchColor
@@ -224,7 +232,6 @@ Frame {
                                         ctx.lineTo(x, bottom)
                                         ctx.stroke()
                                     }
-                                    */
 
 
                                     for (let i = 0; i < edges.length; ++i) {
