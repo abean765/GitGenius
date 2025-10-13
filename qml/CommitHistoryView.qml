@@ -116,6 +116,31 @@ Frame {
                         return ""
                     return branchNamesData.join(", ")
                 }
+                property string tooltipText: {
+                    const data = {
+                        oid: oid,
+                        shortOid: shortOid,
+                        summary: summary,
+                        leftSummary: leftSummary,
+                        author: author,
+                        authorEmail: authorEmail,
+                        timestamp: timestamp,
+                        relativeTime: relativeTime,
+                        parentIds: parentIds || [],
+                        branchLabel: branchLabel,
+                        branchNames: branchNamesData || [],
+                        lane: laneValue,
+                        lanesBefore: lanesBeforeData || [],
+                        currentLanes: currentLanesData || [],
+                        connections: connectionsData || [],
+                        incomingConnections: incomingConnectionsData || [],
+                        mainline: mainlineState,
+                        groupKey: groupKey,
+                        groupSize: groupSize,
+                        groupIndex: groupIndex
+                    }
+                    return JSON.stringify(data, null, 2)
+                }
 
                 visible: !collapsedMember
                 implicitHeight: collapsedMember ? 0 : Math.max(graphContainer.implicitHeight, 48)
@@ -135,7 +160,7 @@ Frame {
                     var dy = pos.y - graphContainer.height / 2
                     return dx * dx + dy * dy <= delegateRoot.commitRadius * delegateRoot.commitRadius
                 }
-                ToolTip.text: delegateRoot.branchLabel
+                ToolTip.text: delegateRoot.tooltipText
                 ToolTip.delay: 200
 
                 Rectangle {
