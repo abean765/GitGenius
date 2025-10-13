@@ -427,12 +427,11 @@ void CommitHistoryModel::collectCommits()
     };
 
     for (CommitEntry entry : collected) {
-        QVector<int> lanesBefore = sortedLaneList(commitLanes);
+        const QVector<int> lanesBefore = sortedLaneList(commitLanes);
         for (int lane : std::as_const(lanesBefore)) {
             m_minLane = std::min(m_minLane, lane);
             m_maxLane = std::max(m_maxLane, lane);
         }
-        entry.lanesBefore = lanesBefore;
 
         pendingIds.remove(entry.oid);
         entry.incomingConnections = pendingIncoming.take(entry.oid);
@@ -549,6 +548,13 @@ void CommitHistoryModel::collectCommits()
         entry.currentLanes = currentLanes;
 
         m_entries.append(entry);
+    }
+
+    QVector<int> nextCommitLanes;
+    for (int index = m_entries.size() - 1; index >= 0; --index) {
+        CommitEntry &entry = m_entries[index];
+        entry.lanesBefore = nextCommitLanes;
+        nextCommitLanes = entry.currentLanes;
     }
 
     // compute grouping information
